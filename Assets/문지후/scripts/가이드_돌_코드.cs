@@ -29,7 +29,7 @@ public class 가이드_돌_코드 : MonoBehaviour
     void Start()
     {
         //실험용
-        격자로놓기시작();
+        //격자로놓기시작();
     }
     void Update()
     {

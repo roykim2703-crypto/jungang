@@ -12,11 +12,11 @@ public class 수_놓기 : MonoBehaviour
     [SerializeField] bool isBlack = true;
 
 
-    가이드_돌_코드 guideStoneScript;
+    [SerializeField] 가이드_돌_코드 guideStoneScript;
 
     void Start()
     {
-        
+        이제너의턴();
     }
     public void 이제너의턴()
     {
