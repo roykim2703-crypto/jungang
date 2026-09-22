@@ -12,6 +12,7 @@ public class 가이드_돌_코드 : MonoBehaviour
     [Header("가이드용 이미지")]
     public Sprite 검은돌이미지;
     public Sprite 흰돌이미지;
+    public Sprite 금지이미지;
     [Header("프리팹")]
     public GameObject 돌;
 

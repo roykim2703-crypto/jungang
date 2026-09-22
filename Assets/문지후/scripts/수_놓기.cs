@@ -9,7 +9,9 @@ public class 수_놓기 : MonoBehaviour
     [SerializeField] float gap = 1f;
 
     [Header("색")]
-    [SerializeField] bool isBlack = true;
+    [SerializeField] private bool isBlack = true;
+
+    bool 검은색임 => isBlack;
 
 
     [SerializeField] 가이드_돌_코드 guideStoneScript;
@@ -30,7 +32,16 @@ public class 수_놓기 : MonoBehaviour
         
     }
 
+    public void 너흑()
+    {
+        isBlack = true;
+    }
 
+
+    public void 너백()
+    {
+        isBlack = false;
+    }
     // Update is called once per frame
     void Update()
     {
