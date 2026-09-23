@@ -1,0 +1,12 @@
+{
+    "name": "육목규칙테스트",
+    "references": [
+        "육목규칙"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ]
+}
