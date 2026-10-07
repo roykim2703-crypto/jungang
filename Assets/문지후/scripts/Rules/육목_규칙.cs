@@ -13,6 +13,7 @@ public enum 착수_금지_사유
     없음,
     바둑판_밖,
     이미_놓인_자리,
+    게임_종료,
     육목,
     오오,
     사오,
@@ -38,8 +39,11 @@ public sealed class 육목_규칙
 
     public int 완성된_사목_수 { get; private set; }
     public int 획득한_증강_수 { get; private set; } = 1;
+    public 돌_색 승자 { get; private set; } = 돌_색.없음;
+    public 돌_색 패자 => 승자 == 돌_색.검정 ? 돌_색.흰색 : 승자 == 돌_색.흰색 ? 돌_색.검정 : 돌_색.없음;
 
     public event Action<int> 증강_획득;
+    public event Action<돌_색> 게임_종료;
 
     public 돌_색 돌가져오기(Vector2Int 좌표)
     {
@@ -48,6 +52,7 @@ public sealed class 육목_규칙
 
     public 착수_금지_사유 착수검사(Vector2Int 좌표, 돌_색 색, bool 증강사용중, bool 증강효과로놓는돌 = false)
     {
+        if (승자 != 돌_색.없음) return 착수_금지_사유.게임_종료;
         if (!범위안(좌표)) return 착수_금지_사유.바둑판_밖;
         if (보드[좌표.x, 좌표.y] != 돌_색.없음) return 착수_금지_사유.이미_놓인_자리;
 
@@ -80,9 +85,25 @@ public sealed class 육목_규칙
         if (금지사유 != 착수_금지_사유.없음) return false;
 
         보드[좌표.x, 좌표.y] = 색;
+        if (방향별_최소연속수(좌표, 색, 6))
+        {
+            승자 = 색;
+            게임_종료?.Invoke(승자);
+            return true;
+        }
         int 새사목수 = 방향별_정확한연속수(좌표, 색, 4);
         for (int i = 0; i < 새사목수; i++) 사목완성처리();
         return true;
+    }
+
+    private bool 방향별_최소연속수(Vector2Int 좌표, 돌_색 색, int 목표수)
+    {
+        foreach (Vector2Int 방향 in 검사방향)
+        {
+            if (1 + 같은돌수(좌표, 방향, 색) + 같은돌수(좌표, -방향, 색) >= 목표수)
+                return true;
+        }
+        return false;
     }
 
     private void 사목완성처리()

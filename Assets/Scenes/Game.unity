@@ -3805,6 +3805,7 @@ MonoBehaviour:
   gap: 1
   isToggle: 1
   isBlack: 1
+  "\uC99D\uAC15\uC0AC\uC6A9\uC911": 0
   "\uAC80\uC740\uB3CC\uC774\uBBF8\uC9C0": {fileID: 4457835537561387818, guid: 3e8abdb35772dee49ab5083449a305f7, type: 3}
   "\uD770\uB3CC\uC774\uBBF8\uC9C0": {fileID: 4411506807897825429, guid: 0a35055ff85c06f40bcb695d03c05fd4, type: 3}
   "\uAE08\uC9C0\uC774\uBBF8\uC9C0": {fileID: -3927285671776144049, guid: 92dd19598797a8649b8f047c72a32c0e, type: 3}
@@ -6093,8 +6094,8 @@ Camera:
   m_GameObject: {fileID: 1897939257}
   m_Enabled: 1
   serializedVersion: 2
-  m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_ClearFlags: 2
+  m_BackGroundColor: {r: 1, g: 1, b: 1, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
