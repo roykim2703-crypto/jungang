@@ -99,6 +99,34 @@ public class 육목_규칙_테스트
         Assert.AreEqual(착수_금지_사유.이미_놓인_자리, 규칙.착수검사(new Vector2Int(9, 9), 돌_색.흰색, false));
     }
 
+    [Test]
+    public void 여섯_돌이_이어지면_승패가_확정되고_추가_착수를_막는다()
+    {
+        육목_규칙 규칙 = 새규칙((2, 9), (3, 9), (4, 9), (5, 9), (6, 9));
+        돌_색 통지된승자 = 돌_색.없음;
+        int 종료횟수 = 0;
+        규칙.게임_종료 += 색 => { 통지된승자 = 색; 종료횟수++; };
+
+        Assert.IsTrue(규칙.돌놓기(new Vector2Int(7, 9), 돌_색.검정, false, false, out _));
+        Assert.AreEqual(돌_색.검정, 규칙.승자);
+        Assert.AreEqual(돌_색.흰색, 규칙.패자);
+        Assert.AreEqual(돌_색.검정, 통지된승자);
+        Assert.AreEqual(1, 종료횟수);
+        Assert.AreEqual(착수_금지_사유.게임_종료, 규칙.착수검사(new Vector2Int(8, 9), 돌_색.흰색, false));
+        Assert.IsFalse(규칙.돌놓기(new Vector2Int(8, 9), 돌_색.흰색, false, false, out _));
+        Assert.AreEqual(1, 종료횟수);
+    }
+
+    [Test]
+    public void 증강효과로_만든_여섯_돌도_승리한다()
+    {
+        육목_규칙 규칙 = 새규칙(돌_색.흰색, (2, 9), (3, 9), (4, 9), (5, 9), (6, 9));
+
+        Assert.IsTrue(규칙.돌놓기(new Vector2Int(7, 9), 돌_색.흰색, true, true, out _));
+        Assert.AreEqual(돌_색.흰색, 규칙.승자);
+        Assert.AreEqual(돌_색.검정, 규칙.패자);
+    }
+
     private static 육목_규칙 새규칙(params (int x, int y)[] 좌표들)
     {
         return 새규칙(돌_색.검정, 좌표들);

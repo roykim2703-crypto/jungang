@@ -20,11 +20,14 @@ public class 수_놓기 : MonoBehaviour
     private bool 증강사용중;
 
     public int 획득한증강수 => 규칙.획득한_증강_수;
+    public 돌_색 승자 => 규칙.승자;
+    public 돌_색 패자 => 규칙.패자;
 
     void Start()
     {
         isBlack = true;
         규칙.증강_획득 += 증강획득알림;
+        규칙.게임_종료 += 게임종료알림;
         guideStoneScript.돌놓기완료 += 턴종료;
         이제너의턴();
     }
@@ -32,10 +35,12 @@ public class 수_놓기 : MonoBehaviour
     void OnDestroy()
     {
         규칙.증강_획득 -= 증강획득알림;
+        규칙.게임_종료 -= 게임종료알림;
         if (guideStoneScript != null) guideStoneScript.돌놓기완료 -= 턴종료;
     }
     public void 이제너의턴()
     {
+        if (규칙.승자 != 돌_색.없음) return;
         //동기화
         guideStoneScript.centerPos = centerPos;
         guideStoneScript.gap = gap;
@@ -62,9 +67,15 @@ public class 수_놓기 : MonoBehaviour
 
     private void 턴종료()
     {
+        if (규칙.승자 != 돌_색.없음) return;
         isBlack = !isBlack;
         증강사용중 = false;
         StartCoroutine(다음턴시작());
+    }
+
+    private void 게임종료알림(돌_색 이긴색)
+    {
+        Debug.Log($"게임 종료: {이긴색} 승리, {규칙.패자} 패배");
     }
 
     private IEnumerator 다음턴시작()
