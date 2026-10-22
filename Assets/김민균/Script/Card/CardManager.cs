@@ -12,7 +12,7 @@ public class CardManager : MonoBehaviour
     public class CardData
     {
         public int Name;
-        public int Value;
+        public float Value;
         public Sprite ItemImage;
         public string explanation;
         public bool Have;
@@ -96,8 +96,9 @@ public class CardManager : MonoBehaviour
 
     public AcquisitionPhase GetPhase(int stoneCount)
     {
-        if (stoneCount <= EarlyPhaseLastStone) return AcquisitionPhase.Early;
-        return stoneCount <= MiddlePhaseLastStone ? AcquisitionPhase.Middle : AcquisitionPhase.Late;
+        // A reward on a phase boundary belongs to the new phase.
+        if (stoneCount < EarlyPhaseLastStone) return AcquisitionPhase.Early;
+        return stoneCount < MiddlePhaseLastStone ? AcquisitionPhase.Middle : AcquisitionPhase.Late;
     }
 
     /// <summary>시드 기반 범위 난수. 시작값 포함, 끝값 제외.</summary>
@@ -253,10 +254,10 @@ public class CardManager : MonoBehaviour
     }
 
     /// <summary>사용 여부와 관계없이 이번 대국에서 획득한 모든 카드의 등급 합계.</summary>
-    public int GetCardGradeTotal(PlayerSide side)
+    public float GetCardGradeTotal(PlayerSide side)
     {
         List<CardData> inventory = side == PlayerSide.Black ? blackInventory : whiteInventory;
-        int total = 0;
+        float total = 0f;
         foreach (CardData card in inventory)
             if (card != null) total += card.Value;
         return total;

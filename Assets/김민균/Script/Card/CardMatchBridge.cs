@@ -36,7 +36,7 @@ public sealed class CardMatchBridge : MonoBehaviour
     public CardManager.PlayerSide? FinalWinner { get; private set; }
 
     public event Action<CardMoveRecord> MoveRecorded;
-    public event Action<CardManager.PlayerSide?, int, int> FinalResultResolved;
+    public event Action<CardManager.PlayerSide?, float, float> FinalResultResolved;
 
     private void Awake()
     {
@@ -164,8 +164,8 @@ public sealed class CardMatchBridge : MonoBehaviour
         guideStone?.StopAllCoroutines();
         SetGuideVisible(false);
 
-        int blackTotal = cardManager == null ? 0 : cardManager.GetCardGradeTotal(CardManager.PlayerSide.Black);
-        int whiteTotal = cardManager == null ? 0 : cardManager.GetCardGradeTotal(CardManager.PlayerSide.White);
+        float blackTotal = cardManager == null ? 0 : cardManager.GetCardGradeTotal(CardManager.PlayerSide.Black);
+        float whiteTotal = cardManager == null ? 0 : cardManager.GetCardGradeTotal(CardManager.PlayerSide.White);
         if (blackTotal > whiteTotal) FinalWinner = CardManager.PlayerSide.White;
         else if (whiteTotal > blackTotal) FinalWinner = CardManager.PlayerSide.Black;
         else

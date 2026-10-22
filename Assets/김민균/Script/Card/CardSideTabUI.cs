@@ -13,6 +13,8 @@ public class CardSideTabUI : MonoBehaviour
         public GameObject Root;
         public Button Button;
         public TMP_Text Title;
+        public TMP_Text Description;
+        public TMP_Text Value;
         public Image Artwork;
     }
 
@@ -187,6 +189,8 @@ public class CardSideTabUI : MonoBehaviour
             int cardId = card.Name;
             string title = string.IsNullOrWhiteSpace(card.DisplayName) ? $"카드 {card.Name}" : card.DisplayName;
             slot.Title.text = card.Used ? $"{title} (사용됨)" : title;
+            if (slot.Description != null) slot.Description.text = card.explanation;
+            if (slot.Value != null) slot.Value.text = $"등급 {card.Value:0.#}";
             slot.Artwork.sprite = card.ItemImage;
             slot.Artwork.enabled = card.ItemImage != null;
             slot.Button.interactable = card.Have && !card.Used && cardManager.CanUseCard(black);
