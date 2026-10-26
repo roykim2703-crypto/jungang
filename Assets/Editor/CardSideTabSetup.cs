@@ -216,16 +216,26 @@ public static class CardSideTabSetup
 
         TMP_Text[] texts = instance.GetComponentsInChildren<TMP_Text>(true);
         TMP_Text title = texts.First(text => text.name == "이름");
-        ConfigureText(title, font, 10f);
+        ConfigureText(title, font, 9f);
         title.rectTransform.localPosition = new Vector3(0f, 39f, 0f);
         title.rectTransform.localScale = Vector3.one;
         title.rectTransform.sizeDelta = new Vector2(60f, 15f);
         title.text = "카드";
-        texts.First(text => text.name == "설명").gameObject.SetActive(false);
-        texts.First(text => text.name == "등급").gameObject.SetActive(false);
+        TMP_Text description = texts.First(text => text.name == "설명");
+        TMP_Text grade = texts.First(text => text.name == "등급");
+        ConfigureText(description, font, 6f);
+        ConfigureText(grade, font, 8f);
+        description.gameObject.SetActive(true);
+        grade.gameObject.SetActive(true);
+        description.rectTransform.localPosition = new Vector3(0f, -20f, 0f);
+        description.rectTransform.localScale = Vector3.one;
+        description.rectTransform.sizeDelta = new Vector2(62f, 40f);
+        grade.rectTransform.localPosition = new Vector3(0f, -44f, 0f);
+        grade.rectTransform.localScale = Vector3.one;
+        grade.rectTransform.sizeDelta = new Vector2(62f, 12f);
 
         holder.SetActive(false);
-        return new CardSideTabUI.CardButtonSlot { Root = holder, Button = button, Title = title, Artwork = artwork };
+        return new CardSideTabUI.CardButtonSlot { Root = holder, Button = button, Title = title, Description = description, Value = grade, Artwork = artwork };
     }
 
     private static TMP_Text GetOrCreateText(Transform parent, string name)
@@ -241,6 +251,7 @@ public static class CardSideTabSetup
     private static void ConfigureText(TMP_Text text, TMP_FontAsset font, float fontSize)
     {
         text.font = font;
+        text.margin = Vector4.zero;
         text.fontSize = fontSize;
         text.enableAutoSizing = true;
         text.fontSizeMin = fontSize * 0.65f;
@@ -260,6 +271,8 @@ public static class CardSideTabSetup
             slot.FindPropertyRelative("Root").objectReferenceValue = slots[i].Root;
             slot.FindPropertyRelative("Button").objectReferenceValue = slots[i].Button;
             slot.FindPropertyRelative("Title").objectReferenceValue = slots[i].Title;
+            slot.FindPropertyRelative("Description").objectReferenceValue = slots[i].Description;
+            slot.FindPropertyRelative("Value").objectReferenceValue = slots[i].Value;
             slot.FindPropertyRelative("Artwork").objectReferenceValue = slots[i].Artwork;
         }
     }
