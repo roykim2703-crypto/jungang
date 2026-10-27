@@ -84,6 +84,7 @@ public class CardManager : MonoBehaviour
 
     private void Awake()
     {
+        AugmentCatalog.Populate(this);
         InitializeSeed(UseFixedSeed ? FixedSeed : Guid.NewGuid().GetHashCode());
         if (acquisitionUI != null) acquisitionUI.Hide();
     }
@@ -183,6 +184,8 @@ public class CardManager : MonoBehaviour
 
     public bool SelectCard(bool black, int slot)
     {
+        if (AugmentMatch.Instance != null && !AugmentMatch.Instance.ApplyingCommand)
+            return AugmentMatch.Instance.RequestSelection(black, slot);
         if (!IsChoosing || slot < 0 || slot >= 3 || (black ? blackSelected : whiteSelected)) return false;
         if (!black && !blackSelected) return false;
         CardData source = (black ? blackOffers : whiteOffers)[slot];
@@ -230,7 +233,13 @@ public class CardManager : MonoBehaviour
         CanUseCard(black ? PlayerSide.Black : PlayerSide.White);
 
     public bool CanUseCard(PlayerSide side) =>
-        turnInitialized && !IsChoosing && currentTurnIsBlack == (side == PlayerSide.Black) && !cardUsedThisTurn;
+        turnInitialized && !IsChoosing && (AugmentMatch.Instance == null || AugmentMatch.Instance.Board.winner == 0)
+        && currentTurnIsBlack == (side == PlayerSide.Black) && !cardUsedThisTurn;
+
+    public void EndMatch()
+    {
+        IsChoosing = false; acquisitionUI.Hide(); CardAvailabilityChanged?.Invoke();
+    }
 
     public bool CheckCard(int name, bool black) =>
         (black ? blackInventory : whiteInventory).Exists(card => card.Name == name && card.Have && !card.Used);
@@ -251,6 +260,61 @@ public class CardManager : MonoBehaviour
         cardUsedThisTurn = true;
         CardAvailabilityChanged?.Invoke();
         return true;
+    }
+
+    [Serializable] public class MatchCards
+    {
+        public int seed, stones, round;
+        public bool choosing, blackSelected, whiteSelected, turnBlack, used;
+        public int[] black, white, blackOffers, whiteOffers;
+        public bool[] blackUsed, whiteUsed;
+    }
+
+    public MatchCards Capture()
+    {
+        return new MatchCards { seed = currentSeed, stones = placedStoneCount, round = rewardRoundCount,
+            choosing = IsChoosing, blackSelected = blackSelected, whiteSelected = whiteSelected,
+            turnBlack = currentTurnIsBlack, used = cardUsedThisTurn,
+            black = blackInventory.ConvertAll(c => c.Name).ToArray(), white = whiteInventory.ConvertAll(c => c.Name).ToArray(),
+            blackUsed = blackInventory.ConvertAll(c => c.Used).ToArray(), whiteUsed = whiteInventory.ConvertAll(c => c.Used).ToArray(),
+            blackOffers = Array.ConvertAll(blackOffers, c => c.Name), whiteOffers = Array.ConvertAll(whiteOffers, c => c.Name) };
+    }
+
+    private CardData CopyCard(int id, bool used = false)
+    {
+        CardData source = CardList.Find(c => c.Name == id);
+        return new CardData { Name = id, DisplayName = source.DisplayName, explanation = source.explanation,
+            Value = source.Value, ItemImage = source.ItemImage, AvailableFrom = source.AvailableFrom,
+            AvailableUntil = source.AvailableUntil, Used = used, Have = !used };
+    }
+
+    public void Restore(MatchCards state)
+    {
+        currentSeed = state.seed; placedStoneCount = state.stones; rewardRoundCount = state.round;
+        IsChoosing = state.choosing; blackSelected = state.blackSelected; whiteSelected = state.whiteSelected;
+        currentTurnIsBlack = state.turnBlack; cardUsedThisTurn = state.used; turnInitialized = true;
+        blackInventory.Clear(); whiteInventory.Clear();
+        for (int i = 0; i < state.black.Length; i++) blackInventory.Add(CopyCard(state.black[i], state.blackUsed[i]));
+        for (int i = 0; i < state.white.Length; i++) whiteInventory.Add(CopyCard(state.white[i], state.whiteUsed[i]));
+        blackOffers = Array.ConvertAll(state.blackOffers, id => CopyCard(id));
+        whiteOffers = Array.ConvertAll(state.whiteOffers, id => CopyCard(id));
+        if (IsChoosing)
+        {
+            acquisitionUI.Show(this, blackOffers, whiteOffers, GetPhase(placedStoneCount), placedStoneCount);
+            if (blackSelected) acquisitionUI.MarkSelected(true, Array.FindIndex(blackOffers, c => c.Name == blackInventory[blackInventory.Count - 1].Name));
+        }
+        else acquisitionUI.Hide();
+        CardAvailabilityChanged?.Invoke(); RewardProgressChanged?.Invoke();
+    }
+
+    public void ResetMatch(int seed)
+    {
+        InitializeSeed(seed); placedStoneCount = rewardRoundCount = 0;
+        blackInventory.Clear(); whiteInventory.Clear();
+        blackOffers = whiteOffers = Array.Empty<CardData>();
+        blackSelected = whiteSelected = IsChoosing = cardUsedThisTurn = false;
+        turnInitialized = false; acquisitionUI.Hide();
+        BeginTurn(true); TryStartInitialAcquisition();
     }
 
     /// <summary>사용 여부와 관계없이 이번 대국에서 획득한 모든 카드의 등급 합계.</summary>

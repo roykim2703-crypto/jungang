@@ -19,6 +19,7 @@ public class Surrender : MonoBehaviour
     }
     public void ConfirmSurrender()
     {
+        if (AugmentMatch.Instance != null) AugmentMatch.Instance.Surrender();
         surrendered = true;
         surrenderUI.SetActive(false);
     }
