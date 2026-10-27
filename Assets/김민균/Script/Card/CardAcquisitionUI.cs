@@ -65,6 +65,11 @@ public class CardAcquisitionUI : MonoBehaviour
                 : $"{PhaseName(card.AvailableFrom)} ~ {PhaseName(card.AvailableUntil)} 획득";
             slot.Artwork.sprite = card.ItemImage;
             slot.Artwork.enabled = card.ItemImage != null;
+            var details = slot.Button.GetComponent<CardDetails>();
+            if (details == null) details = slot.Button.gameObject.AddComponent<CardDetails>();
+            var face = slot.Button.targetGraphic as Image;
+            details.Bind(slot.Title, card.explanation, slot.Value.text + " · " + slot.Timing.text,
+                card.ItemImage, face == null ? null : face.sprite);
             slot.Button.interactable = true;
             slot.Button.onClick.RemoveAllListeners();
             slot.Button.onClick.AddListener(() => manager.SelectCard(black, index));

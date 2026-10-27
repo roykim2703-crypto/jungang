@@ -140,6 +140,12 @@ public class CardSideTabUI : MonoBehaviour
 
     private void RefreshMoveHistory()
     {
+        if (moveHistoryLabel != null && AugmentMatch.Instance != null)
+        {
+            moveHistoryLabel.text = AugmentMatch.Instance.History.Count == 0 ? "기보" : string.Join("\n", AugmentMatch.Instance.History);
+            ResizeMoveHistoryAndShowLatest();
+            return;
+        }
         if (moveHistoryLabel == null || matchBridge == null) return;
         IReadOnlyList<CardMoveRecord> history = matchBridge.MoveHistory;
         var lines = new List<string>();
@@ -181,19 +187,38 @@ public class CardSideTabUI : MonoBehaviour
         for (int i = 0; i < slots.Length; i++)
         {
             CardButtonSlot slot = slots[i];
+            if (slot == null || slot.Root == null) continue;
+            // Repair existing scenes created before description/grade references were saved.
+            foreach (TMP_Text text in slot.Root.GetComponentsInChildren<TMP_Text>(true))
+            {
+                text.margin = Vector4.zero;
+                if (text.name == "설명") slot.Description = text;
+                if (text.name == "등급") slot.Value = text;
+                if (text.name == "이름") slot.Title = text;
+            }
             bool hasCard = i < visibleCards.Length;
             if (slot.Root.activeSelf != hasCard) slot.Root.SetActive(hasCard);
             if (!hasCard) continue;
 
             CardManager.CardData card = visibleCards[i];
+            CardDetails details = slot.Root.GetComponent<CardDetails>();
+            if (details == null) details = slot.Root.AddComponent<CardDetails>();
             int cardId = card.Name;
             string title = string.IsNullOrWhiteSpace(card.DisplayName) ? $"카드 {card.Name}" : card.DisplayName;
             slot.Title.text = card.Used ? $"{title} (사용됨)" : title;
-            if (slot.Description != null) slot.Description.text = card.explanation;
-            if (slot.Value != null) slot.Value.text = $"등급 {card.Value:0.#}";
+            if (slot.Description != null) { slot.Description.gameObject.SetActive(true); slot.Description.text = card.explanation; }
+            if (slot.Value != null) { slot.Value.gameObject.SetActive(true); slot.Value.text = $"등급 {card.Value:0.#}"; }
+            slot.Title.gameObject.SetActive(true);
+            slot.Title.fontSizeMax = 9f;
+            slot.Title.fontSizeMin = 6f;
+            if (slot.Description != null) { slot.Description.fontSizeMax = 6f; slot.Description.fontSizeMin = 4.5f; }
+            if (slot.Value != null) { slot.Value.fontSizeMax = 8f; slot.Value.fontSizeMin = 6f; }
             slot.Artwork.sprite = card.ItemImage;
             slot.Artwork.enabled = card.ItemImage != null;
             slot.Button.interactable = card.Have && !card.Used && cardManager.CanUseCard(black);
+            var face = slot.Button.targetGraphic as Image;
+            details.Bind(slot.Title, card.explanation, $"등급 {card.Value:0.#}" + (card.Used ? " · 사용됨" : ""),
+                card.ItemImage, face == null ? null : face.sprite);
             ColorBlock colors = slot.Button.colors;
             colors.fadeDuration = 0f;
             slot.Button.colors = colors;
@@ -205,6 +230,7 @@ public class CardSideTabUI : MonoBehaviour
 
     private void OnCardButtonClicked(bool black, int cardId)
     {
+        if (AugmentMatch.Instance != null) { AugmentMatch.Instance.ChooseAbility(black, cardId); return; }
         if (cardManager == null || !cardManager.UseCard(cardId, black))
         {
             Debug.LogWarning($"{(black ? "흑" : "백")}은 지금 카드를 사용할 수 없습니다.", this);
