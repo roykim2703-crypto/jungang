@@ -96,7 +96,7 @@ public sealed class AugmentMultiplayer : MonoBehaviour
         try
         {
             var command=JsonUtility.FromJson<AugmentMatch.Command>(json);
-            if(command==null||command.side!=2)return;
+            if(command==null||command.side!=2||command.kind=="meteor-impact")return;
             match.Apply(command);Broadcast();
         }
         catch(Exception e){Debug.LogWarning("증강 명령 거부: "+e.Message);}

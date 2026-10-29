@@ -11,6 +11,7 @@ public sealed class AugmentBoard
     public int grayNext, convertNext, takeover, capture, replay, noSix;
     public int[] giant = { -1, -1, -1 }, giantTurns = new int[3];
     public int piece = -1, pieceOwner, pieceKind;
+    public int lastAbility = -1;
     public static bool Inside(int x, int y) => x >= 0 && x < 19 && y >= 0 && y < 19;
     public int At(int x, int y) => Inside(x, y) ? cells[y * 19 + x] : 5;
     private bool Mutable(int p) => p >= 0 && p < 361 && cells[p] != 3 && cells[p] != 5;
@@ -107,16 +108,25 @@ public sealed class AugmentBoard
     {
         if(winner!=0||!Inside(x,y)) return false;
         int p=y*19+x, own=turn, enemy=3-turn;
-        dx=Math.Sign(dx);dy=Math.Sign(dy);power=Math.Max(1,Math.Min(3,power));
-        if(id==0) return Ability(random(1,21),x,y,dx,dy,power,random);
+        dx=Math.Sign(dx);dy=Math.Sign(dy);power=Math.Max(1,Math.Min(id==11?5:3,power));
+        if(id==0)
+        {
+            // Try each candidate at most once, without applying a failed candidate's partial changes.
+            var candidates = new List<int>(); for(int i=1;i<=20;i++)if(i!=7)candidates.Add(i);
+            while(candidates.Count>0)
+            {
+                int index=random(0,candidates.Count),candidate=candidates[index];candidates.RemoveAt(index);
+                var trial=JsonUtility.FromJson<AugmentBoard>(JsonUtility.ToJson(this));
+                if(!trial.Ability(candidate,x,y,dx,dy,power,random))continue;
+                JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(trial),this);return true;
+            }
+            return false;
+        }
         switch(id)
         {
-            case 1: // Shotgun: destroy center, push neighbours in host-random directions.
-                if(!Mutable(p)) return false;
-                Set(p,0);
-                var nearby=new List<int>();
-                for(int ay=-1;ay<=1;ay++)for(int ax=-1;ax<=1;ax++)if(Inside(x+ax,y+ay)&&At(x+ax,y+ay)!=0)nearby.Add((y+ay)*19+x+ax);
-                foreach(int q in nearby) {int nx=q%19+random(-1,2),ny=q/19+random(-1,2);if(Inside(nx,ny))Move(q,ny*19+nx);}
+            case 1: // Clear every removable stone in the displayed 3x3 area; never push stones.
+                for(int ay=-1;ay<=1;ay++)for(int ax=-1;ax<=1;ax++)
+                    if(Inside(x+ax,y+ay))Set((y+ay)*19+x+ax,0);
                 break;
             case 2: if(!Mutable(p))return false; Set(p,own); break;
             case 3: // Flick along a direction, knocking a hit stone one cell farther.
@@ -139,8 +149,6 @@ public sealed class AugmentBoard
                 for(int ay=0;ay<2;ay++)for(int ax=0;ax<2;ax++)if(At(x+ax,y+ay)!=0)return false;
                 for(int ay=0;ay<2;ay++)for(int ax=0;ax<2;ax++)Set((y+ay)*19+x+ax,own);
                 break;
-            case 7:
-                if(cells[p]!=0)return false; Set(p,own);piece=p;pieceOwner=own;pieceKind=random(0,3);break;
             case 8: grayNext=enemy;break;
             case 10: if(cells[p]!=0)return false;Set(p,3);break;
             case 11:
@@ -173,7 +181,7 @@ public sealed class AugmentBoard
                 else {var owned=new List<int>();for(int i=0;i<361;i++)if(cells[i]==own)owned.Add(i);for(int i=0;i<3&&owned.Count>0;i++){int n=random(0,owned.Count);Set(owned[n],0);owned.RemoveAt(n);}}break;
             default:return false;
         }
-        CheckWinner();return true;
+        lastAbility=id;CheckWinner();return true;
     }
     private void Sort(List<int> segment)
     {
