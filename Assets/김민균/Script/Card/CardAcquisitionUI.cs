@@ -70,7 +70,7 @@ public class CardAcquisitionUI : MonoBehaviour
             var face = slot.Button.targetGraphic as Image;
             details.Bind(slot.Title, card.explanation, slot.Value.text + " · " + slot.Timing.text,
                 card.ItemImage, face == null ? null : face.sprite);
-            slot.Button.interactable = true;
+            slot.Button.interactable = AugmentMatch.Instance == null || AugmentMatch.Instance.CanControl(black ? 1 : 2);
             slot.Button.onClick.RemoveAllListeners();
             slot.Button.onClick.AddListener(() => manager.SelectCard(black, index));
         }
@@ -97,9 +97,11 @@ public class CardAcquisitionUI : MonoBehaviour
         WhiteGroup.SetActive(!black);
     }
 
-    private static void SetInteractable(CardSlot[] slots, bool interactable)
+    private void SetInteractable(CardSlot[] slots, bool interactable)
     {
-        foreach (CardSlot slot in slots) slot.Button.interactable = interactable;
+        bool black = ReferenceEquals(slots, BlackSlots);
+        bool allowed = AugmentMatch.Instance == null || AugmentMatch.Instance.CanControl(black ? 1 : 2);
+        foreach (CardSlot slot in slots) slot.Button.interactable = interactable && allowed;
     }
 
     public void Hide() => gameObject.SetActive(false);
