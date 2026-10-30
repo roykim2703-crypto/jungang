@@ -215,7 +215,8 @@ public class CardSideTabUI : MonoBehaviour
             if (slot.Value != null) { slot.Value.fontSizeMax = 8f; slot.Value.fontSizeMin = 6f; }
             slot.Artwork.sprite = card.ItemImage;
             slot.Artwork.enabled = card.ItemImage != null;
-            slot.Button.interactable = card.Have && !card.Used && cardManager.CanUseCard(black);
+            slot.Button.interactable = card.Have && !card.Used && cardManager.CanUseCard(black)
+                && (AugmentMatch.Instance == null || AugmentMatch.Instance.CanControl(black ? 1 : 2));
             var face = slot.Button.targetGraphic as Image;
             details.Bind(slot.Title, card.explanation, $"등급 {card.Value:0.#}" + (card.Used ? " · 사용됨" : ""),
                 card.ItemImage, face == null ? null : face.sprite);

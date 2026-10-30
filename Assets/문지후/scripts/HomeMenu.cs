@@ -12,6 +12,11 @@ public sealed class HomeMenu : MonoBehaviour
 
     public void StartGame()
     {
+        MultiplayerMenu.Open();
+    }
+
+    public void StartLocalGame()
+    {
         if (loading) return;
         if (!Application.CanStreamedLevelBeLoaded(gameScenePath))
         {

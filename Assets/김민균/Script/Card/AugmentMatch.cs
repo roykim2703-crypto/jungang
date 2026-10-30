@@ -58,11 +58,16 @@ public sealed class AugmentMatch : MonoBehaviour
         if(guide!=null){guide.StopAllCoroutines();guide.enabled=false;guide.GetComponent<SpriteRenderer>().enabled=false;}
         var debugInput=FindAnyObjectByType<테스트용>();if(debugInput!=null)debugInput.enabled=false;
         var bridge=GetComponent<CardMatchBridge>();if(bridge!=null){bridge.StopAllCoroutines();bridge.enabled=false;}
-        multiplayer=gameObject.AddComponent<AugmentMultiplayer>();
+        multiplayer=AugmentMultiplayer.Instance;multiplayer.Attach(this);
         var targetRoot=new GameObject("AugmentTargetPreview");targetRoot.transform.SetParent(transform,false);
         targetView=targetRoot.AddComponent<AugmentTargetView>();
     }
-    private void Start(){ResetMatch(Cards.CurrentSeed);}
+    private void Start(){ResetMatch(Cards.CurrentSeed);multiplayer.MatchLoaded(this);}
+    public void WaitForNetwork()
+    {
+        Waiting=true;dragging=false;selected=-1;targetView?.Hide();Cards.EndMatch();
+        if(guide!=null)guide.GetComponent<SpriteRenderer>().enabled=false;
+    }
     public void ResetMatch(int seed)
     {
         Board=new AugmentBoard();Revision=0;selected=-1;history.Clear();Waiting=false;
@@ -164,7 +169,7 @@ public sealed class AugmentMatch : MonoBehaviour
         var state=JsonUtility.FromJson<Snapshot>(json);
         int[] before=(int[])Board.cells.Clone();bool showEffect=state.effect!=null&&state.effectRevision>effectRevision&&state.effectRevision==state.revision;
         Board=state.board;Revision=state.revision;Status=state.status;lastEffect=state.effect;effectRevision=state.effectRevision;
-        Meteor=state.meteor??new MeteorCharge();if(Meteor.active)Meteor.deadline=Now+state.meteorRemaining;
+        Waiting=false;Meteor=state.meteor??new MeteorCharge();if(Meteor.active)Meteor.deadline=Now+state.meteorRemaining;
         selected=Meteor.active&&CanControl(Meteor.side)?11:-1;pieceMove=false;dragging=false;targetView?.Hide();Waiting=false;history.Clear();history.AddRange(state.history);
         Cards.Restore(state.cards);Render();
         if(showEffect)AugmentEffectView.Play(transform,guide,lastEffect.id,lastEffect.x,lastEffect.y,lastEffect.power,before,Board.cells,new Vector2Int(lastEffect.dx,lastEffect.dy));
