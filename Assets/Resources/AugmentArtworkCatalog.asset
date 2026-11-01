@@ -27,8 +27,6 @@ MonoBehaviour:
     Artwork: {fileID: 21300000, guid: 17e67e36f28046b408d7876990b933a1, type: 3}
   - CardName: "\uC9F1 \uD070 \uB3CC"
     Artwork: {fileID: 21300000, guid: 3f777ce4000f8f14bbc6c831c1bcc062, type: 3}
-  - CardName: "\uBCBD\uB825 \uC9C0\uC6D0"
-    Artwork: {fileID: 21300000, guid: 02e6cd5e540823c4894b9959409e72af, type: 3}
   - CardName: "\uD68C\uC0C9?"
     Artwork: {fileID: 21300000, guid: b677d68a1a0f63c469d0be154d79adce, type: 3}
   - CardName: "\uD22C\uC11D"

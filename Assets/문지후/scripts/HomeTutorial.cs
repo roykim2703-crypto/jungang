@@ -28,11 +28,10 @@ public sealed class HomeTutorial : MonoBehaviour
     private GameObject window;
     private Image artwork;
     private Image whiteFade;
-    private TMP_Text description;
-    private TMP_Text heading;
+    private AspectRatioFitter artworkAspect;
     private Button previous;
     private Button next;
-    private Button close;
+    private Button backdrop;
     private GameObject previousSelection;
     private Coroutine playback;
     private int pageIndex;
@@ -44,7 +43,8 @@ public sealed class HomeTutorial : MonoBehaviour
         if (window == null) CreateWindow();
         window.SetActive(true);
         ShowPage(0);
-        close.Select();
+        if (next.interactable) next.Select();
+        else backdrop.Select();
     }
 
     public void Close()
@@ -75,13 +75,13 @@ public sealed class HomeTutorial : MonoBehaviour
         StopPlayback();
         whiteFade.color = new Color(1f, 1f, 1f, 0f);
         TutorialPage page = count > 0 ? tutorialPages[pageIndex] : null;
-        heading.text = count > 0 ? $"{pageIndex + 1} / {count}  ·  {page?.title}" : "게임 방법";
-        description.text = page != null ? page.description : "인스펙터에서 튜토리얼 장면을 추가해 주세요.";
         previous.interactable = pageIndex > 0;
         next.interactable = pageIndex + 1 < count;
+        previous.gameObject.SetActive(previous.interactable);
+        next.gameObject.SetActive(next.interactable);
         Sprite[] frames = page?.cutscenes;
         int first = FindFrame(frames, -1);
-        artwork.sprite = first >= 0 ? frames[first] : null;
+        SetArtwork(first >= 0 ? frames[first] : null);
         artwork.enabled = first >= 0;
         if (first >= 0 && FindFrame(frames, first) != first)
             playback = StartCoroutine(PlayCutscenes(frames, first));
@@ -106,7 +106,7 @@ public sealed class HomeTutorial : MonoBehaviour
             yield return FadeWhite(0f, 1f);
             current = FindFrame(frames, current);
             if (current < 0) yield break;
-            artwork.sprite = frames[current];
+            SetArtwork(frames[current]);
             yield return FadeWhite(1f, 0f);
         }
     }
@@ -143,36 +143,31 @@ public sealed class HomeTutorial : MonoBehaviour
         var dim = MakeImage("Dim", window.transform, new Color(0f, 0f, 0f, 0.85f));
         Place(dim.rectTransform, Vector2.zero, Vector2.one);
         dim.raycastTarget = true;
-        var panel = new GameObject("Frame", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
-        panel.transform.SetParent(dim.transform, false);
-        var rect = (RectTransform)panel.transform;
-        rect.sizeDelta = new Vector2(1200f, 800f);
-        rect.anchoredPosition = new Vector2(0f, 20f);
-        panel.GetComponent<RawImage>().texture = frameImage;
-        panel.GetComponent<RawImage>().raycastTarget = false;
-        var viewport = MakeImage("CutsceneViewport", rect, new Color(0.035f, 0.025f, 0.02f));
-        Place(viewport.rectTransform, new Vector2(0.024f, 0.25f), new Vector2(0.976f, 0.965f));
-        viewport.gameObject.AddComponent<RectMask2D>();
-        artwork = MakeImage("Cutscene", viewport.transform, Color.white);
-        Place(artwork.rectTransform, Vector2.zero, Vector2.one);
-        artwork.preserveAspect = true;
-        whiteFade = MakeImage("WhiteFade", viewport.transform, new Color(1f, 1f, 1f, 0f));
+        backdrop = dim.gameObject.AddComponent<Button>();
+        backdrop.targetGraphic = dim;
+        backdrop.transition = Selectable.Transition.None;
+        backdrop.navigation = new Navigation { mode = Navigation.Mode.None };
+        backdrop.onClick.AddListener(Close);
+
+        // Picture and arrows are siblings of the backdrop: picture clicks cannot close it.
+        var bounds = new GameObject("PictureBounds", typeof(RectTransform));
+        bounds.transform.SetParent(window.transform, false);
+        Place((RectTransform)bounds.transform, new Vector2(0.12f, 0.08f), new Vector2(0.88f, 0.92f));
+        artwork = MakeImage("Cutscene", bounds.transform, Color.white);
+        artwork.raycastTarget = true;
+        artworkAspect = artwork.gameObject.AddComponent<AspectRatioFitter>();
+        artworkAspect.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+        artworkAspect.aspectRatio = 1.5f;
+        whiteFade = MakeImage("WhiteFade", artwork.transform, new Color(1f, 1f, 1f, 0f));
         Place(whiteFade.rectTransform, Vector2.zero, Vector2.one);
-        // Frame above the picture preserves the pixel corners around the opening.
-        var border = new GameObject("FrameBorder", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
-        border.transform.SetParent(rect, false);
-        Place((RectTransform)border.transform, Vector2.zero, Vector2.one);
-        border.GetComponent<RawImage>().texture = frameImage;
-        border.GetComponent<RawImage>().raycastTarget = false;
-        description = MakeText("Description", rect, 28f, new Color(0.18f, 0.12f, 0.07f));
-        Place(description.rectTransform, new Vector2(0.06f, 0.035f), new Vector2(0.94f, 0.235f));
-        description.alignment = TextAlignmentOptions.Center;
-        heading = MakeText("PageTitle", dim.transform, 27f, new Color(1f, 0.92f, 0.77f));
-        heading.rectTransform.sizeDelta = new Vector2(1000f, 55f);
-        heading.rectTransform.anchoredPosition = new Vector2(0f, 465f);
-        previous = MakeButton("Previous", "이전", dim.transform, new Vector2(-260f, -440f), PreviousPage);
-        next = MakeButton("Next", "다음", dim.transform, new Vector2(260f, -440f), NextPage);
-        close = MakeButton("Close", "닫기", dim.transform, new Vector2(0f, -440f), Close);
+        previous = MakeArrow("Previous", window.transform, 0.055f, false, PreviousPage);
+        next = MakeArrow("Next", window.transform, 0.945f, true, NextPage);
+    }
+
+    private void SetArtwork(Sprite sprite)
+    {
+        artwork.sprite = sprite;
+        if (sprite != null) artworkAspect.aspectRatio = sprite.rect.width / sprite.rect.height;
     }
 
     private static Image MakeImage(string name, Transform parent, Color color)
@@ -185,35 +180,25 @@ public sealed class HomeTutorial : MonoBehaviour
         return image;
     }
 
-    private TMP_Text MakeText(string name, Transform parent, float size, Color color)
+    private static Button MakeArrow(string name, Transform parent, float anchorX, bool pointsRight,
+        UnityEngine.Events.UnityAction action)
     {
-        var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
-        go.transform.SetParent(parent, false);
-        var text = go.GetComponent<TextMeshProUGUI>();
-        text.font = font;
-        text.fontSize = size;
-        text.enableAutoSizing = true;
-        text.fontSizeMin = 16f;
-        text.fontSizeMax = size;
-        text.color = color;
-        text.richText = false;
-        text.raycastTarget = false;
-        text.alignment = TextAlignmentOptions.Center;
-        return text;
-    }
-
-    private Button MakeButton(string name, string label, Transform parent, Vector2 position, UnityEngine.Events.UnityAction action)
-    {
-        var image = MakeImage(name, parent, new Color(0.35f, 0.24f, 0.13f));
-        image.rectTransform.sizeDelta = new Vector2(200f, 56f);
-        image.rectTransform.anchoredPosition = position;
+        var image = MakeImage(name, parent, new Color(0.22f, 0.14f, 0.08f, 0.9f));
+        image.rectTransform.anchorMin = image.rectTransform.anchorMax = new Vector2(anchorX, 0.5f);
+        image.rectTransform.sizeDelta = new Vector2(90f, 100f);
         image.raycastTarget = true;
         var button = image.gameObject.AddComponent<Button>();
         button.targetGraphic = image;
         button.onClick.AddListener(action);
-        var text = MakeText("Label", image.transform, 26f, new Color(1f, 0.92f, 0.77f));
-        Place(text.rectTransform, Vector2.zero, Vector2.one);
-        text.text = label;
+        // Geometry avoids depending on arrow glyphs in the Korean font atlas.
+        for (int i = 0; i < 2; i++)
+        {
+            var stroke = MakeImage("ArrowStroke", image.transform, new Color(1f, 0.9f, 0.66f));
+            stroke.rectTransform.sizeDelta = new Vector2(34f, 8f);
+            stroke.rectTransform.anchoredPosition = new Vector2(0f, i == 0 ? 10f : -10f);
+            float angle = i == 0 ? -45f : 45f;
+            stroke.rectTransform.localRotation = Quaternion.Euler(0f, 0f, pointsRight ? angle : -angle);
+        }
         return button;
     }
 

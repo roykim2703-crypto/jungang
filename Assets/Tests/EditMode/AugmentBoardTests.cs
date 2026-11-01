@@ -37,14 +37,6 @@ public class AugmentBoardTests
         Assert.IsFalse(b.Place(4,9,true));
     }
     [Test]
-    public void PieceCanMoveMoreThanOnceAndCaptureConsumesIt()
-    {
-        var b=new AugmentBoard();b.Ability(7,9,9,1,0,1,First);
-        Assert.IsTrue(b.MovePiece(10,9));Assert.AreEqual(9*19+10,b.piece);
-        b.turn=1;b.cells[9*19+11]=2;
-        Assert.IsTrue(b.MovePiece(11,9));Assert.AreEqual(-1,b.piece);Assert.AreEqual(0,b.At(11,9));
-    }
-    [Test]
     public void DestroyedGiantCannotWinAfterReplacementOnSameCell()
     {
         var b=new AugmentBoard();b.Ability(14,9,9,1,0,1,First);

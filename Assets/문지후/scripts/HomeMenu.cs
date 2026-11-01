@@ -18,6 +18,11 @@ public sealed class HomeMenu : MonoBehaviour
 
     public void StartGame()
     {
+        MultiplayerMenu.Open();
+    }
+
+    public void StartLocalGame()
+    {
         if (loading) return;
         if (!Application.CanStreamedLevelBeLoaded(gameScenePath))
         {
@@ -132,7 +137,7 @@ public sealed class HomeMenu : MonoBehaviour
     public void OpenSettings()
     {
         if (loading) return;
-        Debug.Log("HomeMenu.OpenSettings called (settings UI pending).", this);
+        AudioSettings.Open();
         settingsRequested.Invoke();
     }
 

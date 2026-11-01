@@ -12,6 +12,8 @@ public static class AugmentCatalog
         var artwork = Resources.Load<AugmentArtworkCatalog>("AugmentArtworkCatalog");
         foreach (var card in catalog.cards)
         {
+            int usage = card.explanation == null ? -1 : card.explanation.IndexOf("사용법:", StringComparison.Ordinal);
+            if (usage >= 0) card.explanation = card.explanation.Substring(0, usage).TrimEnd();
             card.ItemImage = artwork == null ? null : artwork.Find(card.DisplayName);
             if (card.ItemImage == null)
                 Debug.LogWarning($"증강 이미지 연결을 확인하세요: {card.DisplayName}", manager);
