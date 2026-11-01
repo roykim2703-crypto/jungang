@@ -148,6 +148,7 @@ public sealed class AugmentMatch : MonoBehaviour
         }
         finally{ApplyingCommand=false;}
         if(!success){Status="사용할 수 없는 위치 또는 차례입니다. 다른 위치를 고르세요.";return false;}
+        if(command.kind=="place")GameAudio.Instance.PlayStone();
         Revision++;selected=Meteor.active&&CanControl(Meteor.side)?11:-1;pieceMove=false;dragging=false;targetView?.Hide();
         if(Board.winner==0&&Array.TrueForAll(Board.cells,c=>c!=0))
         {
@@ -169,6 +170,7 @@ public sealed class AugmentMatch : MonoBehaviour
         var state=JsonUtility.FromJson<Snapshot>(json);
         int[] before=(int[])Board.cells.Clone();bool showEffect=state.effect!=null&&state.effectRevision>effectRevision&&state.effectRevision==state.revision;
         Board=state.board;Revision=state.revision;Status=state.status;lastEffect=state.effect;effectRevision=state.effectRevision;
+        if(state.history!=null && state.history.Length==history.Count+1)GameAudio.Instance.PlayStone();
         Waiting=false;Meteor=state.meteor??new MeteorCharge();if(Meteor.active)Meteor.deadline=Now+state.meteorRemaining;
         selected=Meteor.active&&CanControl(Meteor.side)?11:-1;pieceMove=false;dragging=false;targetView?.Hide();Waiting=false;history.Clear();history.AddRange(state.history);
         Cards.Restore(state.cards);Render();
@@ -178,6 +180,7 @@ public sealed class AugmentMatch : MonoBehaviour
     {
         if(Meteor.active&&!Waiting&&(!multiplayer.Active||multiplayer.IsHost)&&Meteor.Remaining(Now)<=0)
             Submit(new Command{kind="meteor-impact",side=Meteor.side});
+        if(AudioSettings.IsOpen){dragging=false;targetView?.Hide();return;}
         if(Mouse.current==null||Camera.main==null||guide==null)return;
         if(Mouse.current.rightButton.wasPressedThisFrame||(Keyboard.current!=null&&Keyboard.current.escapeKey.wasPressedThisFrame))
         {
