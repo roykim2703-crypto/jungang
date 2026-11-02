@@ -9,12 +9,13 @@ public sealed class MultiplayerMenu : MonoBehaviour
 {
     private AugmentMultiplayer room;
     private GameObject modal,hud;
-    private TMP_Text status,code,hudStatus;
+    private TMP_Text status,code,hudStatus,timeLimit;
     private TMP_InputField input;
-    private Button host,join,local,start,leave,copy,close;
+    private Button host,join,local,start,leave,copy,close,timeDown,timeUp;
     private TMP_FontAsset font;
     private bool visible;
     private string error="";
+    private static readonly int[] TimeOptions={180,300,600,900,1200};
     public static void Open()
     {
         var root=AugmentMultiplayer.Instance;
@@ -30,13 +31,16 @@ public sealed class MultiplayerMenu : MonoBehaviour
     private void Update()
     {
         bool home=SceneManager.GetActiveScene().path==AugmentMultiplayer.HomeScene;
-        modal.SetActive(home&&visible);hud.SetActive(!home&&SceneManager.GetActiveScene().path==AugmentMultiplayer.GameScene);
+        modal.SetActive(home&&visible);hud.SetActive(!home&&SceneManager.GetActiveScene().path==AugmentMultiplayer.GameScene&&(AugmentMatch.Instance==null||!AugmentMatch.Instance.IsReviewMode));
         bool offline=!room.Active&&!room.IsConnecting;
         host.interactable=local.interactable=offline;
         input.interactable=offline;join.interactable=offline&&input.text.Trim().Length>=4;
         start.interactable=room.CanStart;leave.interactable=room.Active||room.IsConnecting;
         copy.interactable=room.Active&&!string.IsNullOrEmpty(room.InvitationCode);
         close.interactable=!room.IsConnecting;
+        bool canEditTime=offline||room.Active&&room.IsHost&&room.Stage==AugmentMultiplayer.RoomStage.Lobby;
+        timeDown.interactable=timeUp.interactable=canEditTime;
+        timeLimit.text=$"인당 제한시간  {room.TimeLimitSeconds/60}분";
         status.text=string.IsNullOrEmpty(error)?room.ConnectionStatus:error;
         code.text=string.IsNullOrEmpty(room.InvitationCode)?"초대코드 · 방을 만들면 표시됩니다":"초대코드  "+room.InvitationCode;
         string side=room.Active?(room.IsHost?"흑":"백"):"로컬";
@@ -52,34 +56,43 @@ public sealed class MultiplayerMenu : MonoBehaviour
         modal=Rect("RoomMenu",canvasObject.transform,Vector2.zero,Vector2.zero).gameObject;
         var full=(RectTransform)modal.transform;full.anchorMin=Vector2.zero;full.anchorMax=Vector2.one;full.offsetMin=full.offsetMax=Vector2.zero;
         modal.AddComponent<Image>().color=new Color(0,0,0,.65f);
-        var panel=Rect("Panel",modal.transform,Vector2.zero,new Vector2(620,560));
+        var panel=Rect("Panel",modal.transform,Vector2.zero,new Vector2(620,650));
         panel.gameObject.AddComponent<Image>().color=new Color(.98f,.94f,.84f);
         var outline=panel.gameObject.AddComponent<Outline>();outline.effectColor=new Color(.23f,.17f,.1f);outline.effectDistance=new Vector2(3,-3);
-        Label("Title",panel,new Vector2(0,230),new Vector2(540,45),"대국 시작",30);
-        status=Label("Status",panel,new Vector2(0,170),new Vector2(540,65),"",19);
-        host=Button("Host",panel,new Vector2(-135,95),new Vector2(250,48),"초대 방 만들기",async()=>
+        Label("Title",panel,new Vector2(0,275),new Vector2(540,45),"대국 시작",30);
+        status=Label("Status",panel,new Vector2(0,220),new Vector2(540,55),"",19);
+        timeLimit=Label("TimeLimit",panel,new Vector2(0,162),new Vector2(250,42),"",20);
+        timeDown=Button("TimeDown",panel,new Vector2(-160,162),new Vector2(64,42),"◀",()=>ChangeTime(-1));
+        timeUp=Button("TimeUp",panel,new Vector2(160,162),new Vector2(64,42),"▶",()=>ChangeTime(1));
+        host=Button("Host",panel,new Vector2(-135,105),new Vector2(250,48),"초대 방 만들기",async()=>
         {error="";try{await room.Connect(true);}catch(Exception e){error=e.Message;}});
-        local=Button("Local",panel,new Vector2(135,95),new Vector2(250,48),"같은 기기에서 대국",()=>{visible=false;room.StartLocal();});
-        var field=Rect("InviteCodeInput",panel,new Vector2(-60,30),new Vector2(400,48));
+        local=Button("Local",panel,new Vector2(135,105),new Vector2(250,48),"같은 기기에서 대국",()=>{visible=false;room.StartLocal();});
+        var field=Rect("InviteCodeInput",panel,new Vector2(-60,42),new Vector2(400,48));
         field.gameObject.AddComponent<Image>().color=Color.white;input=field.gameObject.AddComponent<TMP_InputField>();
         var viewport=Rect("Viewport",field,Vector2.zero,new Vector2(376,44));viewport.gameObject.AddComponent<RectMask2D>();
         var entry=Label("Text",viewport,Vector2.zero,new Vector2(370,44),"",23);entry.alignment=TextAlignmentOptions.MidlineLeft;
         var placeholder=Label("Placeholder",viewport,Vector2.zero,new Vector2(370,44),"친구의 초대코드 입력",20);placeholder.color=new Color(.55f,.5f,.43f);placeholder.alignment=TextAlignmentOptions.MidlineLeft;
         input.textViewport=viewport;input.textComponent=entry;input.placeholder=placeholder;input.characterLimit=12;input.contentType=TMP_InputField.ContentType.Alphanumeric;
-        join=Button("Join",panel,new Vector2(210,30),new Vector2(100,48),"참가",async()=>
+        join=Button("Join",panel,new Vector2(210,42),new Vector2(100,48),"참가",async()=>
         {error="";try{await room.JoinByCodeAsync(input.text);}catch(Exception e){error=e.Message;}});
-        code=Label("RoomCode",panel,new Vector2(-40,-35),new Vector2(440,50),"",22);
-        copy=Button("Copy",panel,new Vector2(220,-35),new Vector2(80,40),"복사",()=>GUIUtility.systemCopyBuffer=room.InvitationCode);
-        Label("Sides",panel,new Vector2(0,-85),new Vector2(540,40),"방장: 흑 · 참가자: 백 · 2인 대국",17);
-        start=Button("Start",panel,new Vector2(0,-140),new Vector2(520,48),"두 사람 준비 완료 후 대국 시작",()=>{error="";room.StartMatch();});
-        leave=Button("Leave",panel,new Vector2(-135,-210),new Vector2(250,44),"방 나가기 / 연결 취소",async()=>{error="";await room.Leave();});
-        close=Button("Close",panel,new Vector2(135,-210),new Vector2(250,44),"닫기",()=>visible=false);
+        code=Label("RoomCode",panel,new Vector2(-40,-22),new Vector2(440,50),"",22);
+        copy=Button("Copy",panel,new Vector2(220,-22),new Vector2(80,40),"복사",()=>GUIUtility.systemCopyBuffer=room.InvitationCode);
+        Label("Sides",panel,new Vector2(0,-72),new Vector2(540,40),"방장: 흑 · 참가자: 백 · 2인 대국",17);
+        start=Button("Start",panel,new Vector2(0,-128),new Vector2(520,48),"두 사람 준비 완료 후 대국 시작",()=>{error="";room.StartMatch();});
+        leave=Button("Leave",panel,new Vector2(-135,-245),new Vector2(250,44),"방 나가기 / 연결 취소",async()=>{error="";await room.Leave();});
+        close=Button("Close",panel,new Vector2(135,-245),new Vector2(250,44),"닫기",()=>visible=false);
         hud=Rect("MatchRoomStatus",canvasObject.transform,Vector2.zero,new Vector2(430,52)).gameObject;
-        var hudRect=(RectTransform)hud.transform;hudRect.anchorMin=hudRect.anchorMax=new Vector2(.5f,1);hudRect.pivot=new Vector2(.5f,1);hudRect.anchoredPosition=new Vector2(0,-8);
+        var hudRect=(RectTransform)hud.transform;hudRect.anchorMin=hudRect.anchorMax=new Vector2(.5f,0);hudRect.pivot=new Vector2(.5f,0);hudRect.anchoredPosition=new Vector2(0,8);
         hud.AddComponent<Image>().color=new Color(.98f,.94f,.84f,.94f);
         hudStatus=Label("Status",hud.transform,new Vector2(-50,0),new Vector2(310,45),"",15);
         Button("ReturnHome",hud.transform,new Vector2(163,0),new Vector2(90,38),"나가기",async()=>await room.Leave());
         modal.SetActive(false);hud.SetActive(false);
+    }
+    private void ChangeTime(int direction)
+    {
+        int current=0,best=int.MaxValue;
+        for(int i=0;i<TimeOptions.Length;i++){int delta=Mathf.Abs(TimeOptions[i]-room.TimeLimitSeconds);if(delta<best){best=delta;current=i;}}
+        current=(current+direction+TimeOptions.Length)%TimeOptions.Length;room.SetTimeLimitSeconds(TimeOptions[current]);
     }
     private static RectTransform Rect(string name,Transform parent,Vector2 position,Vector2 size)
     {

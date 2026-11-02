@@ -66,6 +66,7 @@ public static class CardSideTabSetup
         seedRect.anchoredPosition = new Vector2(0f, -4f);
         seedRect.sizeDelta = new Vector2(-12f, 22f);
         seedLabel.text = "SEED 0";
+        seedLabel.gameObject.SetActive(false);
         seedLabel.textWrappingMode = TextWrappingModes.NoWrap;
         seedLabel.raycastTarget = true;
         Button seedButton = seedLabel.GetComponent<Button>();
@@ -87,7 +88,7 @@ public static class CardSideTabSetup
         viewportRect.anchorMax = Vector2.one;
         viewportRect.pivot = new Vector2(0.5f, 0.5f);
         viewportRect.offsetMin = new Vector2(5f, 7f);
-        viewportRect.offsetMax = new Vector2(-5f, -30f);
+        viewportRect.offsetMax = new Vector2(-5f, -16f);
         Image viewportImage = viewportTransform.GetComponent<Image>();
         viewportImage.color = new Color(0f, 0f, 0f, 0.001f);
         viewportImage.raycastTarget = true;
@@ -118,7 +119,8 @@ public static class CardSideTabSetup
 
         TMP_Text rewardProgressLabel = GetOrCreateText(rewardProgressBar.transform, "RewardProgressLabel");
         ConfigureText(rewardProgressLabel, font, 12f);
-        rewardProgressLabel.text = $"다음 증강까지 {manager.StonesPerReward}수";
+        rewardProgressLabel.text = "";
+        rewardProgressLabel.gameObject.SetActive(false);
         rewardProgressLabel.textWrappingMode = TextWrappingModes.NoWrap;
         RectTransform progressLabelRect = rewardProgressLabel.rectTransform;
         progressLabelRect.anchorMin = Vector2.zero;
@@ -133,12 +135,14 @@ public static class CardSideTabSetup
         progressColors.fadeDuration = 0f;
         rewardProgressBar.colors = progressColors;
 
-        CardSideTabUI.CardButtonSlot[] black = new CardSideTabUI.CardButtonSlot[3];
-        CardSideTabUI.CardButtonSlot[] white = new CardSideTabUI.CardButtonSlot[3];
-        for (int i = 0; i < 3; i++)
+        CardSideTabUI.CardButtonSlot[] black = new CardSideTabUI.CardButtonSlot[4];
+        CardSideTabUI.CardButtonSlot[] white = new CardSideTabUI.CardButtonSlot[4];
+        for (int i = 0; i < 4; i++)
         {
-            black[i] = CreateSlot(sideTab, prefab, font, $"BlackCardButton_{i + 1}", new Vector2(-80f + 80f * i, 55f));
-            white[i] = CreateSlot(sideTab, prefab, font, $"WhiteCardButton_{i + 1}", new Vector2(-80f + 80f * i, -91f));
+            float width=((RectTransform)sideTab).rect.width;
+            float x=(.158f+.227f*i-.5f)*width;
+            black[i] = CreateSlot(sideTab, prefab, font, $"BlackCardButton_{i + 1}", new Vector2(x, 55f));
+            white[i] = CreateSlot(sideTab, prefab, font, $"WhiteCardButton_{i + 1}", new Vector2(x, -91f));
         }
 
         var serialized = new SerializedObject(ui);
@@ -174,6 +178,7 @@ public static class CardSideTabSetup
         holderRect.anchorMin = holderRect.anchorMax = holderRect.pivot = new Vector2(0.5f, 0.5f);
         holderRect.anchoredPosition = position;
         holderRect.sizeDelta = new Vector2(70f, 102f);
+        holderRect.localScale=new Vector3(.88f,.94f,1);
 
         var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, holder.transform);
         instance.transform.localPosition = Vector3.zero;

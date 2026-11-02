@@ -18,10 +18,27 @@ public class AugmentAimTests
         Assert.IsFalse(AugmentAim.Drag(Vector2.zero,new Vector2(.1f,.1f),true,out _,out _));
     }
     [Test]
+    public void FlickPullKeepsExactOppositeVectorAndLongerPullAddsPower()
+    {
+        Assert.IsTrue(AugmentAim.FlickPull(new Vector2(9,9),new Vector2(6,7),out var direction,out int power));
+        Vector2 precise=AugmentAim.PreciseDirection(direction);
+        Assert.Greater(precise.x,0);Assert.Greater(precise.y,0);
+        Assert.AreEqual(4,power);
+        Assert.AreEqual(2f/3f,precise.y/precise.x,.01f);
+    }
+    [Test]
     public void NormalDragUsesPointerDirectionAndCapsStrength()
     {
         AugmentAim.Drag(Vector2.zero,new Vector2(30,1),false,out var direction,out int power);
         Assert.AreEqual(Vector2Int.right,direction);Assert.AreEqual(3,power);
+    }
+    [Test]
+    public void MaximumCatapultPowerCrossesTheWholeBoard()
+    {
+        Assert.Greater(AugmentAim.CatapultDistance(AugmentAim.CatapultMaxPower),19);
+        var board=new AugmentBoard();
+        Assert.IsFalse(board.Ability(9,9,18,0,-1,AugmentAim.CatapultMaxPower,(a,b)=>a));
+        Assert.AreEqual(0,System.Array.FindAll(board.cells,c=>c!=0).Length);
     }
     [TestCase(1,9)][TestCase(15,9)][TestCase(19,9)][TestCase(6,4)]
     public void RangeMatchesEffectFootprint(int id,int expectedCells)

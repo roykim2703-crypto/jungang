@@ -20,7 +20,7 @@ public class CardSideTabUI : MonoBehaviour
 
     [SerializeField] private CardManager cardManager;
     [SerializeField] private CardMatchBridge matchBridge;
-    [Header("기보 Seed 버튼")]
+    [Header("기보")]
     [SerializeField] private Button seedButton;
     [SerializeField] private TMP_Text seedLabel;
     [SerializeField] private TMP_Text moveHistoryLabel;
@@ -29,8 +29,8 @@ public class CardSideTabUI : MonoBehaviour
     [SerializeField] private Scrollbar rewardProgressBar;
     [SerializeField] private TMP_Text rewardProgressLabel;
     [Header("사이드 탭 카드 버튼")]
-    [SerializeField] private CardButtonSlot[] blackSlots = new CardButtonSlot[3];
-    [SerializeField] private CardButtonSlot[] whiteSlots = new CardButtonSlot[3];
+    [SerializeField] private CardButtonSlot[] blackSlots = new CardButtonSlot[4];
+    [SerializeField] private CardButtonSlot[] whiteSlots = new CardButtonSlot[4];
 
     public event Action<bool, int> CardButtonClicked;
     public int DisplayedSeed => cardManager == null ? 0 : cardManager.CurrentSeed;
@@ -57,8 +57,21 @@ public class CardSideTabUI : MonoBehaviour
         if (seedButton != null)
         {
             seedButton.onClick.RemoveAllListeners();
-            seedButton.onClick.AddListener(CopySeed);
+            seedButton.gameObject.SetActive(false);
         }
+        if(seedLabel!=null)seedLabel.gameObject.SetActive(false);
+        if(moveHistoryScrollRect!=null)
+        {
+            RectTransform viewport=moveHistoryScrollRect.GetComponent<RectTransform>();
+            if(viewport!=null)viewport.offsetMax=new Vector2(viewport.offsetMax.x,-16f);
+        }
+        if(moveHistoryLabel!=null)
+        {
+            moveHistoryLabel.raycastTarget=true;
+            moveHistoryLabel.color=new Color(.2f,.15f,.1f);moveHistoryLabel.margin=new Vector4(3,3,3,3);
+            var click=moveHistoryLabel.GetComponent<MoveHistoryLineClick>()??moveHistoryLabel.gameObject.AddComponent<MoveHistoryLineClick>();click.Bind(moveHistoryLabel);
+        }
+        ConfigureRewardGauge();
         RefreshAll();
     }
 
@@ -111,7 +124,6 @@ public class CardSideTabUI : MonoBehaviour
     public void RefreshAll()
     {
         if (cardManager == null) return;
-        if (seedLabel != null) seedLabel.text = $"SEED {cardManager.CurrentSeed}";
         RefreshRewardProgress();
         RefreshMoveHistory();
         RefreshCards();
@@ -122,15 +134,30 @@ public class CardSideTabUI : MonoBehaviour
         if (cardManager == null) return;
         if (rewardProgressBar != null)
         {
-            rewardProgressBar.SetValueWithoutNotify(cardManager.RewardProgress01);
+            rewardProgressBar.SetValueWithoutNotify(0f);
+            rewardProgressBar.size=cardManager.RewardProgress01;
             rewardProgressBar.interactable = false;
         }
         if (rewardProgressLabel != null)
         {
-            if (!cardManager.HasMoreRewards) rewardProgressLabel.text = "증강 획득 완료";
-            else if (cardManager.RewardRoundCount == 0) rewardProgressLabel.text = "게임 시작 증강 획득";
-            else rewardProgressLabel.text = $"다음 증강까지 {cardManager.StonesUntilNextReward}수";
+            rewardProgressLabel.text="";rewardProgressLabel.gameObject.SetActive(false);
         }
+    }
+    private void ConfigureRewardGauge()
+    {
+        if(rewardProgressBar==null||rewardProgressBar.handleRect==null)return;
+        rewardProgressBar.transition=Selectable.Transition.None;
+        rewardProgressBar.direction=Scrollbar.Direction.LeftToRight;
+        var handle=rewardProgressBar.handleRect;handle.sizeDelta=Vector2.zero;
+        var fill=handle.GetComponent<Image>();if(fill!=null)fill.canvasRenderer.SetColor(Color.white);
+        var track=handle.parent.Find("RewardGaugeTrack") as RectTransform;
+        if(track==null)
+        {
+            track=new GameObject("RewardGaugeTrack",typeof(RectTransform),typeof(CanvasRenderer),typeof(Image)).GetComponent<RectTransform>();
+            track.SetParent(handle.parent,false);track.SetAsFirstSibling();
+        }
+        track.anchorMin=Vector2.zero;track.anchorMax=Vector2.one;track.offsetMin=track.offsetMax=Vector2.zero;
+        var image=track.GetComponent<Image>();image.color=new Color(.48f,.48f,.48f);image.raycastTarget=false;
     }
 
     private void OnMoveRecorded(CardMoveRecord record)
@@ -140,10 +167,22 @@ public class CardSideTabUI : MonoBehaviour
 
     private void RefreshMoveHistory()
     {
+        if(moveHistoryLabel!=null&&AugmentMatch.Instance!=null&&AugmentMatch.Instance.IsReviewMode)
+        {
+            var reviewLines=new List<string>();
+            for(int i=0;i<MatchReviewSession.Frames.Count;i++)
+            {
+                string line=MatchReviewSession.Frames[i].label;
+                reviewLines.Add(i==AugmentMatch.Instance.ReviewIndex?$"<color=#F4B52C>▶ {line}</color>":$"   {line}");
+            }
+            moveHistoryLabel.text=reviewLines.Count==0?"기보":string.Join("\n",reviewLines);ResizeMoveHistoryAndShowLatest(false);return;
+        }
         if (moveHistoryLabel != null && AugmentMatch.Instance != null)
         {
-            moveHistoryLabel.text = AugmentMatch.Instance.History.Count == 0 ? "기보" : string.Join("\n", AugmentMatch.Instance.History);
-            ResizeMoveHistoryAndShowLatest();
+            string content=AugmentMatch.Instance.History.Count == 0 ? "기보" : string.Join("\n", AugmentMatch.Instance.History);
+            bool changed=moveHistoryLabel.text!=content;
+            moveHistoryLabel.text=content;
+            ResizeMoveHistoryAndShowLatest(changed);
             return;
         }
         if (moveHistoryLabel == null || matchBridge == null) return;
@@ -159,7 +198,7 @@ public class CardSideTabUI : MonoBehaviour
         ResizeMoveHistoryAndShowLatest();
     }
 
-    private void ResizeMoveHistoryAndShowLatest()
+    private void ResizeMoveHistoryAndShowLatest(bool showLatest=true)
     {
         if (moveHistoryLabel == null || moveHistoryScrollRect == null) return;
         moveHistoryLabel.ForceMeshUpdate();
@@ -170,7 +209,7 @@ public class CardSideTabUI : MonoBehaviour
         float contentHeight = Mathf.Max(viewportHeight, moveHistoryLabel.preferredHeight + 8f);
         textRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, contentHeight);
         Canvas.ForceUpdateCanvases();
-        moveHistoryScrollRect.verticalNormalizedPosition = 0f;
+        if(showLatest)moveHistoryScrollRect.verticalNormalizedPosition = 0f;
     }
 
     public void RefreshCards()
@@ -205,7 +244,10 @@ public class CardSideTabUI : MonoBehaviour
             if (details == null) details = slot.Root.AddComponent<CardDetails>();
             int cardId = card.Name;
             string title = string.IsNullOrWhiteSpace(card.DisplayName) ? $"카드 {card.Name}" : card.DisplayName;
-            slot.Title.text = card.Used ? $"{title} (사용됨)" : title;
+            var match=AugmentMatch.Instance;
+            bool hideUsage=AugmentVisibility.IsSecret(cardId)&&match!=null&&!match.IsReviewMode&&match.LocalSide!=0&&match.LocalSide!=(black?1:2);
+            bool showUsed=card.Used&&!hideUsage;
+            slot.Title.text = showUsed ? $"{title} (사용됨)" : title;
             if (slot.Description != null) { slot.Description.gameObject.SetActive(true); slot.Description.text = card.explanation; }
             if (slot.Value != null) { slot.Value.gameObject.SetActive(true); slot.Value.text = $"등급 {card.Value:0.#}"; }
             slot.Title.gameObject.SetActive(true);
@@ -218,7 +260,7 @@ public class CardSideTabUI : MonoBehaviour
             slot.Button.interactable = card.Have && !card.Used && cardManager.CanUseCard(black)
                 && (AugmentMatch.Instance == null || AugmentMatch.Instance.CanControl(black ? 1 : 2));
             var face = slot.Button.targetGraphic as Image;
-            details.Bind(slot.Title, card.explanation, $"등급 {card.Value:0.#}" + (card.Used ? " · 사용됨" : ""),
+            details.Bind(slot.Title, card.explanation, $"등급 {card.Value:0.#}" + (showUsed ? " · 사용됨" : ""),
                 card.ItemImage, face == null ? null : face.sprite);
             ColorBlock colors = slot.Button.colors;
             colors.fadeDuration = 0f;
@@ -241,10 +283,4 @@ public class CardSideTabUI : MonoBehaviour
         Debug.Log($"{(black ? "흑" : "백")} 카드 사용: {cardId}", this);
     }
 
-    private void CopySeed()
-    {
-        if (cardManager == null) return;
-        GUIUtility.systemCopyBuffer = cardManager.CurrentSeed.ToString();
-        Debug.Log($"Seed {cardManager.CurrentSeed}를 클립보드에 복사했습니다.", this);
-    }
 }

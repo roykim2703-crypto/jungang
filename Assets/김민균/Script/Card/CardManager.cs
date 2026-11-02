@@ -24,10 +24,10 @@ public class CardManager : MonoBehaviour
     public List<CardData> CardList = new List<CardData>();
 
     [Header("카드 획득: 흑·백 합산 착수 수")]
-    [Min(1)] public int StonesPerReward = 20;
-    [Min(1)] public int MaxRewardRounds = 3;
-    [Min(1)] public int EarlyPhaseLastStone = 20;
-    [Min(2)] public int MiddlePhaseLastStone = 40;
+    [Min(1)] public int StonesPerReward = 30;
+    [Min(1)] public int MaxRewardRounds = 4;
+    [Min(1)] public int EarlyPhaseLastStone = 30;
+    [Min(2)] public int MiddlePhaseLastStone = 90;
     [SerializeField] private CardAcquisitionUI acquisitionUI;
     [Header("같은 시드와 카드 설정은 같은 순서로 추첨")]
     public bool UseFixedSeed;
