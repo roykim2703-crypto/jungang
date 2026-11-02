@@ -15,6 +15,25 @@ public sealed class AugmentBoard
     public int[] giant = { -1, -1, -1 }, giantTurns = new int[3];
     public int piece = -1, pieceOwner, pieceKind;
     public int lastAbility = -1;
+    public int[] blackPremoves = new int[0], whitePremoves = new int[0];
+    public int[] premoveIndex = new int[3];
+    public int premoveSetup;
+    [NonSerialized] public List<PremovePlacement> automaticPlacements = new List<PremovePlacement>();
+    [NonSerialized] public int blockedPremoves;
+    public struct PremovePlacement { public int cell,color; public bool vanished; }
+    public int[] Premoves(int side)=>side==1?blackPremoves:whitePremoves;
+    public bool HasPendingPremoves=>premoveSetup!=0||(blackPremoves.Length==6&&premoveIndex[1]<6)||(whitePremoves.Length==6&&premoveIndex[2]<6);
+    public bool QueuePremove(int x,int y)
+    {
+        if(winner!=0||premoveSetup!=turn||!Inside(x,y))return false;
+        int visible=VisibleAt(x,y,turn);if(visible!=0&&visible!=5)return false;
+        int cell=y*19+x;var queue=Premoves(turn);
+        if(queue.Length>=6||Array.IndexOf(queue,cell)>=0)return false;
+        Array.Resize(ref queue,queue.Length+1);queue[queue.Length-1]=cell;
+        if(turn==1)blackPremoves=queue;else whitePremoves=queue;
+        if(queue.Length==6)premoveSetup=0;
+        return true;
+    }
     public static bool Inside(int x, int y) => x >= 0 && x < 19 && y >= 0 && y < 19;
     public int At(int x, int y) => Inside(x, y) ? cells[y * 19 + x] : 5;
     public int VisibleAt(int x,int y,int viewer)
@@ -81,7 +100,9 @@ public sealed class AugmentBoard
     public bool Place(int x, int y, bool augmented,out bool revealedHiddenStone)
     {
         revealedHiddenStone=false;
-        if(!Inside(x,y)||winner!=0)return false;
+        automaticPlacements.Clear();
+        blockedPremoves=0;
+        if(!Inside(x,y)||winner!=0||premoveSetup!=0)return false;
         int target=y*19+x;
         if(hidden[target]!=0&&hidden[target]!=turn)
         {
@@ -91,18 +112,47 @@ public sealed class AugmentBoard
             FinishTurn();return true;
         }
         if (!Legal(x,y,turn,augmented)) return false;
-        if (capture == turn) Capture(turn);
         int p = y * 19 + x;
+        PutStone(p);
+        CheckWinner();
+        if (replay > 0) { replay--; if (replay > 0) return true; }
+        FinishTurn(); return true;
+    }
+    private int PutStone(int p)
+    {
+        if(capture==turn)Capture(turn);
         int color = grayNext == turn ? 4 : convertNext == turn ? 3 - turn : turn;
         Set(p,color);
         if (grayNext == turn) { grayNext = 0; noSix = 3-turn; }
         if (convertNext == turn) convertNext = 0;
         if (capture == turn) { Capture(turn); capture = 0; }
-        CheckWinner();
-        if (replay > 0) { replay--; if (replay > 0) return true; }
-        FinishTurn(); return true;
+        return color;
     }
     private void FinishTurn()
+    {
+        FinishOneTurn();
+        // Two groups per player. Automatic turns also finish when a group is blocked.
+        for(int round=0;round<4&&winner==0;round++)
+        {
+            var queue=Premoves(turn);int index=premoveIndex[turn];
+            if(queue.Length!=6||index>=6||premoveSetup!=0)break;
+            premoveIndex[turn]+=3;
+            bool blocked=false;
+            for(int i=index;i<index+3;i++)
+            {
+                int cell=queue[i];
+                if(cell<0||cell>=361||(cells[cell]!=0&&cells[cell]!=5))blocked=true;
+            }
+            if(blocked)blockedPremoves++;
+            else for(int i=index;i<index+3;i++)
+            {
+                int cell=queue[i];bool vanished=cells[cell]==5;
+                automaticPlacements.Add(new PremovePlacement{cell=cell,color=PutStone(cell),vanished=vanished});
+            }
+            CheckWinner();FinishOneTurn();
+        }
+    }
+    private void FinishOneTurn()
     {
         moves++; if(takeover==turn)takeover=0;
         if(noSix==turn)noSix=0;
@@ -140,14 +190,46 @@ public sealed class AugmentBoard
             if(!liberty) foreach(int q in group) Set(q,0);
         }
     }
+    private int StoneAnchor(int p)
+    {
+        int x=p%19,y=p/19;
+        for(int ay=Math.Max(0,y-1);ay<=y;ay++)for(int ax=Math.Max(0,x-1);ax<=x;ax++)
+            if(largeStone[ay*19+ax]!=0)return ay*19+ax;
+        return p;
+    }
+    private int[] StoneCells(int p)
+    {
+        int anchor=StoneAnchor(p);
+        return largeStone[anchor]!=0?new[]{anchor,anchor+1,anchor+19,anchor+20}:new[]{p};
+    }
     private bool Move(int p,int q)
     {
-        if (!Mutable(p)||!Mutable(q)||cells[p]==0||cells[q]!=0) return false;
-        int color=cells[p], stamp=order[p], invisible=hidden[p];
-        bool wasPiece=piece==p; int giantSide=giant[1]==p?1:giant[2]==p?2:0;
-        Set(p,0);Set(q,color);order[q]=stamp;hidden[q]=invisible;
-        if(wasPiece) piece=q;
-        if(giantSide!=0)giant[giantSide]=q;
+        if(!Mutable(p)||!Mutable(q)||cells[p]==0)return false;
+        int dx=q%19-p%19,dy=q/19-p/19,anchor=StoneAnchor(p);
+        int[] source=StoneCells(p),destination=new int[source.Length];
+        for(int i=0;i<source.Length;i++)
+        {
+            int x=source[i]%19+dx,y=source[i]/19+dy;if(!Inside(x,y))return false;
+            int target=y*19+x;destination[i]=target;
+            if(!Mutable(target)||(cells[target]!=0&&Array.IndexOf(source,target)<0))return false;
+        }
+        int[] colors=new int[source.Length],stamps=new int[source.Length],invisible=new int[source.Length];
+        int largeOwner=largeStone[anchor],movedPiece=Array.IndexOf(source,piece);
+        int blackGiant=Array.IndexOf(source,giant[1]),whiteGiant=Array.IndexOf(source,giant[2]);
+        for(int i=0;i<source.Length;i++)
+        {
+            int cell=source[i];colors[i]=cells[cell];stamps[i]=order[cell];invisible[i]=hidden[cell];
+            cells[cell]=0;hidden[cell]=0;order[cell]=++sequence;
+        }
+        largeStone[anchor]=0;
+        for(int i=0;i<source.Length;i++)
+        {
+            int cell=destination[i];cells[cell]=colors[i];order[cell]=stamps[i];hidden[cell]=invisible[i];
+        }
+        if(largeOwner!=0)largeStone[destination[0]]=largeOwner;
+        if(movedPiece>=0)piece=destination[movedPiece];
+        if(blackGiant>=0)giant[1]=destination[blackGiant];
+        if(whiteGiant>=0)giant[2]=destination[whiteGiant];
         return true;
     }
     private bool FlickStone(int start,int rawDx,int rawDy,int power)
@@ -163,6 +245,22 @@ public sealed class AugmentBoard
             if(!Inside(x,y))break;
             int target=y*19+x;if(target==lastCell)continue;lastCell=target;
             if(!Mutable(target))break;
+            if(largeStone[StoneAnchor(current)]!=0)
+            {
+                var step=new Vector2Int(x-current%19,y-current/19);
+                bool collision=false;
+                int[] footprint=StoneCells(current);
+                foreach(int cell in footprint)
+                {
+                    int nx=cell%19+step.x,ny=cell/19+step.y;
+                    if(Inside(nx,ny)&&cells[ny*19+nx]!=0&&Array.IndexOf(footprint,ny*19+nx)<0)collision=true;
+                }
+                // Move the complete footprint, including when the pointer selected a covered cell.
+                if(!PushOne(current,step,Mathf.FloorToInt(energy)))break;
+                current=target;energy-=.55f+(collision?1.5f:0);
+                if(energy<=.25f)break;
+                continue;
+            }
             if(cells[target]!=0)
             {
                 Vector2Int step=new Vector2Int(Mathf.RoundToInt(direction.x),Mathf.RoundToInt(direction.y));
@@ -187,14 +285,30 @@ public sealed class AugmentBoard
     }
     private bool PushOne(int p,Vector2Int step,int energy)
     {
-        int x=p%19+step.x,y=p/19+step.y;if(!Inside(x,y))return false;
-        int q=y*19+x;if(!Mutable(q))return false;
-        if(cells[q]!=0&&(energy<2||!PushOne(q,step,energy-2)))return false;
-        return Move(p,q);
+        var planned=new List<int>();var seen=new HashSet<int>();
+        bool Plan(int cell,int strength)
+        {
+            int anchor=StoneAnchor(cell);if(seen.Contains(anchor))return true;
+            if(!Mutable(anchor)||cells[anchor]==0)return false;
+            int[] footprint=StoneCells(anchor);
+            foreach(int source in footprint)
+            {
+                int x=source%19+step.x,y=source/19+step.y;if(!Inside(x,y))return false;
+                int target=y*19+x;if(Array.IndexOf(footprint,target)>=0)continue;
+                if(!Mutable(target))return false;
+                if(cells[target]!=0&&(strength<2||!Plan(target,strength-2)))return false;
+            }
+            seen.Add(anchor);planned.Add(anchor);return true;
+        }
+        // Validate every leading cell before moving any member of the collision chain.
+        if(!Plan(p,energy))return false;
+        foreach(int source in planned)
+            if(!Move(source,(source/19+step.y)*19+source%19+step.x))return false;
+        return true;
     }
     public bool Ability(int id,int x,int y,int dx,int dy,int power,Func<int,int,int> random)
     {
-        if(winner!=0||!Inside(x,y)) return false;
+        if(winner!=0||premoveSetup!=0||!Inside(x,y)) return false;
         int p=y*19+x, own=turn, enemy=3-turn;
         int rawDx=dx,rawDy=dy;
         dx=Math.Sign(dx);dy=Math.Sign(dy);power=Math.Max(1,Math.Min(id==3?8:id==9?AugmentAim.CatapultMaxPower:id==11?5:3,power));
@@ -233,11 +347,14 @@ public sealed class AugmentBoard
                 break;
             case 4: capture=own; Capture(own); break;
             case 5:
-                var recalled=new List<int>();
-                for(int i=0;i<361;i++)if(cells[i]==own)recalled.Add(i);
-                if(recalled.Count==0)return false;
-                foreach(int i in recalled)Set(i,0);
-                replay=recalled.Count;break;
+                if(Premoves(own).Length>0&&premoveIndex[own]<6)return false;
+                var recent=new List<int>();
+                for(int i=0;i<361;i++)if(cells[i]==own&&StoneAnchor(i)==i)recent.Add(i);
+                if(recent.Count<2)return false;
+                recent.Sort((a,b)=>order[b].CompareTo(order[a]));
+                for(int i=0;i<2;i++)Set(recent[i],0);
+                if(own==1)blackPremoves=new int[0];else whitePremoves=new int[0];
+                premoveIndex[own]=0;premoveSetup=own;replay=0;break;
             case 6:
                 if(!Inside(x+1,y+1))return false;
                 for(int ay=0;ay<2;ay++)for(int ax=0;ax<2;ax++)if(At(x+ax,y+ay)!=0)return false;
@@ -288,13 +405,15 @@ public sealed class AugmentBoard
     }
     public bool CanMovePiece(int x,int y)
     {
-        if(winner!=0||piece<0||pieceOwner!=turn||!Inside(x,y))return false;
+        if(winner!=0||premoveSetup!=0||piece<0||pieceOwner!=turn||!Inside(x,y))return false;
         int dx=Math.Abs(x-piece%19),dy=Math.Abs(y-piece/19),q=y*19+x;
         bool valid=pieceKind==0?(dx+dy==1):pieceKind==1?(dx==1&&dy==2||dx==2&&dy==1):(Math.Max(dx,dy)==1);
         return valid&&Mutable(q)&&cells[q]!=turn;
     }
     public bool MovePiece(int x,int y)
     {
+        automaticPlacements.Clear();
+        blockedPremoves=0;
         if(!CanMovePiece(x,y))return false;
         int q=y*19+x;
         if(cells[q]!=0){Set(q,0);Set(piece,0);piece=-1;}

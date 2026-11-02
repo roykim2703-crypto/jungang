@@ -137,48 +137,37 @@ public sealed class AugmentEffectView : MonoBehaviour
     {
         float gap=guide.gap;
         Vector3 center=new Vector3(guide.centerPos.x,guide.centerPos.y,-.18f);
-        var hammer=Art(root.transform,Artwork.Hammer,112);Fit(hammer,gap*5.2f);
-        Vector3 baseScale=hammer.transform.localScale;
-        float restingAngle=-42f;
+        var hammer=Art(root.transform,Artwork.Hammer,112);Fit(hammer,gap*4f);
+        Vector3 impact=center+Vector3.up*gap*.25f;
+        Vector3 raised=impact+Vector3.up*gap*1.4f;
+        hammer.transform.rotation=Quaternion.Euler(0,0,-42f);
+        hammer.transform.position=raised;
         for(int hit=0;hit<2;hit++)
         {
-            Vector3 windup=center+new Vector3(gap*(hit==0?1.7f:-1.7f),gap*3.4f,0);
-            Vector3 impact=center+Vector3.up*gap*.25f;
-            float spinStart=restingAngle+hit*360f;
-            for(float elapsed=0;elapsed<.48f;elapsed+=Time.unscaledDeltaTime)
+            for(float elapsed=0;elapsed<.09f;elapsed+=Time.unscaledDeltaTime)
             {
-                float t=Mathf.Clamp01(elapsed/.48f),ease=Mathf.SmoothStep(0,1,t);
-                hammer.transform.position=Vector3.Lerp(center+Vector3.up*gap*1.2f,windup,ease);
-                hammer.transform.rotation=Quaternion.Euler(0,0,spinStart+360f*ease);
-                hammer.transform.localScale=baseScale*(.84f+.16f*ease);
+                float t=Mathf.Clamp01(elapsed/.09f);
+                hammer.transform.position=Vector3.Lerp(raised,impact,t*t);
                 yield return null;
             }
-            Vector3 slamStart=hammer.transform.position;
-            for(float elapsed=0;elapsed<.13f;elapsed+=Time.unscaledDeltaTime)
+            hammer.transform.position=impact;
+            for(float elapsed=0;elapsed<.07f;elapsed+=Time.unscaledDeltaTime)
             {
-                float t=Mathf.Clamp01(elapsed/.13f),ease=t*t*t;
-                hammer.transform.position=Vector3.Lerp(slamStart,impact,ease);
-                hammer.transform.rotation=Quaternion.Euler(0,0,spinStart+360f+18f*ease);
-                hammer.transform.localScale=baseScale*(1f+.12f*ease);
                 yield return null;
             }
-            var shock=Box(root.transform,new Color(1f,.74f,.25f,.72f));
-            shock.sortingOrder=108;shock.transform.position=center;
-            for(float elapsed=0;elapsed<.2f;elapsed+=Time.unscaledDeltaTime)
+            if(hit==1)break;
+            for(float elapsed=0;elapsed<.16f;elapsed+=Time.unscaledDeltaTime)
             {
-                float t=Mathf.Clamp01(elapsed/.2f);
-                shock.transform.localScale=Vector3.one*gap*Mathf.Lerp(1.2f,7.5f,t);
-                Color c=shock.color;c.a=(1-t)*.72f;shock.color=c;
-                hammer.transform.position=Vector3.Lerp(impact,center+Vector3.up*gap*1.35f,Mathf.Sin(t*Mathf.PI*.5f));
-                hammer.transform.localScale=baseScale*(1.12f-.12f*t);
+                float t=Mathf.Clamp01(elapsed/.16f);
+                hammer.transform.position=Vector3.Lerp(impact,raised,Mathf.SmoothStep(0,1,t));
                 yield return null;
             }
-            Destroy(shock.gameObject);
+            hammer.transform.position=raised;
         }
-        for(float elapsed=0;elapsed<.18f;elapsed+=Time.unscaledDeltaTime)
+        for(float elapsed=0;elapsed<.1f;elapsed+=Time.unscaledDeltaTime)
         {
-            float t=Mathf.Clamp01(elapsed/.18f);Color c=hammer.color;c.a=1-t;hammer.color=c;
-            hammer.transform.localScale=baseScale*(1+.2f*t);yield return null;
+            Color c=hammer.color;c.a=1-Mathf.Clamp01(elapsed/.1f);hammer.color=c;
+            yield return null;
         }
         Destroy(root);
     }

@@ -87,12 +87,13 @@ public sealed class AugmentMultiplayer : MonoBehaviour
             if(network.NetworkConfig==null)network.NetworkConfig=new NetworkConfig();
             if(network.NetworkConfig.NetworkTransport==null)
                 network.NetworkConfig.NetworkTransport=network.GetComponent<UnityTransport>()??network.gameObject.AddComponent<UnityTransport>();
+            if(network.NetworkConfig.NetworkTransport is UnityTransport transport)transport.UseWebSockets=true;
             if(network.IsListening)throw new InvalidOperationException("이전 네트워크 연결이 아직 종료되지 않았습니다.");
             network.NetworkConfig.EnableSceneManagement=false;
             network.OnClientConnectedCallback+=Connected;network.OnClientDisconnectCallback+=Disconnected;
             ISession created=host
-                ?await MultiplayerService.Instance.CreateSessionAsync(new SessionOptions{MaxPlayers=2,IsPrivate=true}.WithRelayNetwork())
-                :await MultiplayerService.Instance.JoinSessionByCodeAsync(code);
+                ?await MultiplayerService.Instance.CreateSessionAsync(new SessionOptions{MaxPlayers=2,IsPrivate=true}.WithRelayNetwork().WithNetworkOptions(new NetworkOptions{RelayProtocol=RelayProtocol.WSS}))
+                :await MultiplayerService.Instance.JoinSessionByCodeAsync(code,new JoinSessionOptions().WithNetworkOptions(new NetworkOptions{RelayProtocol=RelayProtocol.WSS}));
             if(request!=operation){await created.LeaveAsync();return;}
             session=created;code=session.Code;active=true;Stage=RoomStage.Lobby;Register();
             message=host?"방 생성 완료 · 친구에게 초대코드를 보내세요.":"참가 완료 · 방장이 대국을 시작할 때까지 기다리세요.";
@@ -172,7 +173,7 @@ public sealed class AugmentMultiplayer : MonoBehaviour
         try
         {
             reader.ReadValueSafe(out string json);var command=JsonUtility.FromJson<AugmentMatch.Command>(json);
-            if(command==null||command.side!=2||command.kind=="meteor-impact"||command.kind=="timeout")return;
+            if(command==null||command.side!=2||command.kind=="meteor-impact"||command.kind=="shotgun-end"||command.kind=="timeout")return;
             match.Apply(command);Broadcast();
         }
         catch(Exception e){Debug.LogWarning("대국 명령 거부: "+e.Message);}

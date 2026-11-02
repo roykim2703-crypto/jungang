@@ -59,10 +59,9 @@ public class AugmentBoardTests
         Assert.IsFalse(b.Place(5,9,false));
     }
     [Test]
-    public void ReplayAllowsFiveAndKeepsTurnUntilAllStonesReplaced()
+    public void LegacyReplaySnapshotAllowsFiveAndKeepsTurnUntilAllStonesReplaced()
     {
-        var b=new AugmentBoard();b.cells[0]=b.cells[1]=1;
-        Assert.IsTrue(b.Ability(5,9,9,1,0,1,First));
+        var b=new AugmentBoard {replay=2};
         b.Place(4,4,true);Assert.AreEqual(1,b.turn);Assert.AreEqual(1,b.replay);
         b.Place(5,4,true);Assert.AreEqual(2,b.turn);Assert.AreEqual(0,b.replay);
         b=new AugmentBoard { replay=2 };for(int x=0;x<4;x++)b.cells[9*19+x]=1;
@@ -95,12 +94,13 @@ public class AugmentBoardTests
         Assert.AreEqual(1,System.Array.FindAll(b.cells,c=>c==1).Length);
     }
     [Test]
-    public void ReplayRecallsAllFourCellsOfOneLargeStone()
+    public void YarinaoshiRemovesRecentLargeStoneAsOneObject()
     {
         var b=new AugmentBoard();Assert.IsTrue(b.Ability(6,8,8,1,0,1,First));
+        b.cells[0]=1;b.order[0]=++b.sequence;
         Assert.IsTrue(b.Ability(5,9,9,1,0,1,First));
-        Assert.AreEqual(4,b.replay);Assert.AreEqual(0,System.Array.FindAll(b.cells,c=>c!=0).Length);
-        for(int i=0;i<4;i++){Assert.IsTrue(b.Place(i*2,2,true));Assert.AreEqual(i<3?1:2,b.turn);}
+        Assert.AreEqual(0,b.replay);Assert.AreEqual(0,System.Array.FindAll(b.cells,c=>c!=0).Length);
+        Assert.AreEqual(0,b.largeStone[8*19+8]);Assert.AreEqual(1,b.premoveSetup);
     }
     [TestCase(1)][TestCase(2)]
     public void BigStoneOccupiesAllFourCellsForBothPlayers(int owner)
@@ -157,6 +157,49 @@ public class AugmentBoardTests
         var b=new AugmentBoard();b.cells[9*19+5]=1;b.cells[9*19+7]=2;b.cells[9*19+9]=2;
         Assert.IsTrue(b.Ability(3,5,9,1000,0,8,First));
         Assert.AreEqual(1,b.At(9,9));Assert.AreEqual(2,b.At(10,9));Assert.AreEqual(2,b.At(11,9));
+    }
+    [TestCase(0,0,1,0)][TestCase(1,0,1,0)][TestCase(0,1,0,1)][TestCase(1,1,-1,0)]
+    public void FlickMovesLargeStoneAsOneObjectFromAnyCoveredCell(int ox,int oy,int dx,int dy)
+    {
+        var b=new AugmentBoard();Assert.IsTrue(b.Ability(6,5,8,1,0,1,First));
+        Assert.IsTrue(b.Ability(3,5+ox,8+oy,dx,dy,2,First));
+        int x=5+2*dx,y=8+2*dy;
+        Assert.AreEqual(1,b.largeStone[y*19+x]);
+        Assert.AreEqual(4,System.Array.FindAll(b.cells,c=>c==1).Length);
+        Assert.AreEqual(1,System.Array.FindAll(b.largeStone,c=>c!=0).Length);
+        for(int ay=0;ay<2;ay++)for(int ax=0;ax<2;ax++)Assert.AreEqual(1,b.At(x+ax,y+ay));
+    }
+    [Test]
+    public void FlickPushesEnemyLargeStoneWithoutBreakingItsFootprint()
+    {
+        var b=new AugmentBoard {turn=2};Assert.IsTrue(b.Ability(6,7,8,1,0,1,First));
+        b.turn=1;b.cells[8*19+5]=1;
+        Assert.IsTrue(b.Ability(3,5,8,1,0,8,First));
+        int anchor=System.Array.FindIndex(b.largeStone,c=>c==2);
+        Assert.Greater(anchor%19,7);Assert.AreEqual(4,System.Array.FindAll(b.cells,c=>c==2).Length);
+        for(int ay=0;ay<2;ay++)for(int ax=0;ax<2;ax++)Assert.AreEqual(2,b.cells[anchor+ay*19+ax]);
+    }
+    [Test]
+    public void LargeStoneCannotMoveThroughAnObstacleOnItsOtherRow()
+    {
+        var b=new AugmentBoard();Assert.IsTrue(b.Ability(6,5,8,1,0,1,First));
+        b.cells[9*19+7]=3;int[] before=(int[])b.cells.Clone();
+        Assert.IsFalse(b.Ability(3,5,8,1,0,8,First));
+        CollectionAssert.AreEqual(before,b.cells);Assert.AreEqual(1,b.largeStone[8*19+5]);
+    }
+    [TestCase(14)][TestCase(16)][TestCase(7)][TestCase(8)]
+    public void FlickKeepsSpecialPropertiesWhenPushingAStone(int kind)
+    {
+        var b=new AugmentBoard();int source=9*19+7;
+        b.cells[9*19+5]=1;b.cells[source]=kind==8?4:2;
+        if(kind==14){b.giant[2]=source;b.giantTurns[2]=2;}
+        if(kind==16)b.hidden[source]=2;
+        if(kind==7){b.piece=source;b.pieceOwner=2;b.pieceKind=1;}
+        Assert.IsTrue(b.Ability(3,5,9,1,0,8,First));
+        if(kind==14){Assert.Greater(b.giant[2],source);Assert.AreEqual(2,b.cells[b.giant[2]]);Assert.AreEqual(2,b.giantTurns[2]);}
+        if(kind==16){int target=System.Array.FindIndex(b.hidden,c=>c==2);Assert.Greater(target,source);Assert.AreEqual(2,b.cells[target]);}
+        if(kind==7){Assert.Greater(b.piece,source);Assert.AreEqual(2,b.cells[b.piece]);Assert.AreEqual(2,b.pieceOwner);Assert.AreEqual(1,b.pieceKind);}
+        if(kind==8)Assert.AreEqual(1,System.Array.FindAll(b.cells,c=>c==4).Length);
     }
     [Test]
     public void SnapshotRoundTripKeepsBoardAndPendingEffects()

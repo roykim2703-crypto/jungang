@@ -12,21 +12,22 @@ public static class MatchReviewSession
     public static int Winner { get; private set; }
     public static int ViewerSide { get; private set; }
     public static bool ReviewRequested { get; private set; }
+    private static string resultDetail;
     public static bool HasResult=>Winner!=0&&frames.Count>0;
 
     public static void BeginMatch()
     {
         if(ReviewRequested)return;
-        frames.Clear();Winner=0;ViewerSide=0;
+        frames.Clear();Winner=0;ViewerSide=0;resultDetail=null;
     }
     public static void Record(string label,string snapshot)
     {
         if(string.IsNullOrEmpty(snapshot))return;
         frames.Add(new Frame{label=string.IsNullOrEmpty(label)?$"{frames.Count+1}수":label,snapshot=snapshot});
     }
-    public static void Complete(int winner,int viewerSide,string finalSnapshot)
+    public static void Complete(int winner,int viewerSide,string finalSnapshot,string detail=null)
     {
-        Winner=winner;ViewerSide=viewerSide;
+        Winner=winner;ViewerSide=viewerSide;resultDetail=detail;
         if(frames.Count==0)Record("최종 결과",finalSnapshot);
         else if(frames[frames.Count-1].snapshot!=finalSnapshot)Record("대국 종료",finalSnapshot);
     }
@@ -39,7 +40,7 @@ public static class MatchReviewSession
             return Winner==ViewerSide?"승리":"패배";
         }
     }
-    public static string Detail=>Winner==3?"양쪽이 비겼습니다":$"{(Winner==1?"흑":"백")} 승리";
+    public static string Detail=>!string.IsNullOrEmpty(resultDetail)?resultDetail:Winner==3?"양쪽이 비겼습니다":$"{(Winner==1?"흑":"백")} 승리";
     public static void RequestReview(){if(frames.Count==0)return;ReviewRequested=true;SceneManager.LoadSceneAsync(AugmentMultiplayer.GameScene);}
     public static bool TryBeginReview(out string snapshot)
     {
@@ -47,5 +48,5 @@ public static class MatchReviewSession
         ReviewRequested=false;snapshot=frames[frames.Count-1].snapshot;return true;
     }
     public static string SnapshotAt(int index)=>index>=0&&index<frames.Count?frames[index].snapshot:null;
-    public static void Clear(){frames.Clear();Winner=ViewerSide=0;ReviewRequested=false;}
+    public static void Clear(){frames.Clear();Winner=ViewerSide=0;ReviewRequested=false;resultDetail=null;}
 }

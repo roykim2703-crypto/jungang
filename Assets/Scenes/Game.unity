@@ -15722,7 +15722,7 @@ MonoBehaviour:
   - Name: 12
     Value: 5
     ItemImage: {fileID: 21300000, guid: 65bd62931e9474f41a84e405e2ff2b4d, type: 3}
-    explanation: "\uC0C1\uB300\uAC00 \uC99D\uAC15\uC744 \uC0AC\uC6A9\uD588\uB294\uC9C0 \uC54C \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uB2E4\uC74C\uD134\uC5D0 \uC0C1\uB300\uAC00 \uB454 \uD751\uB3CC\uC744 \uBC31\uB3CC\uB85C \uBC14\uAFC9\uB2C8\uB2E4.\n\uC0AC\uC6A9\uBC95: \uBC31\uB3CC \uBC84\uC804\uB3C4 \uC874\uC7AC\uD568"
+    explanation: "\uC0C1\uB300\uAC00 \uC99D\uAC15\uC744 \uC0AC\uC6A9\uD588\uB294\uC9C0 \uC54C \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uB2E4\uC74C\uD134\uC5D0 \uC0C1\uB300\uAC00 \uB454 \uB3CC\uC744 \uBCF8\uC778\uC758 \uC0C9\uAE54\uB85C \uBC14\uAFC8\uB2C8\uB2E4."
     Have: 0
     Used: 0
     DisplayName: "\uC5B8\uC81C\uBD80\uD130 \"\uD751\uB3CC\"\uC744 \uB450\uC5C8\uB2E4\uACE0 \uC0DD\uAC01\uD55C\uAC70\uC9C0?"
@@ -15800,10 +15800,10 @@ MonoBehaviour:
     DisplayName: "\uD310 \uB4A4\uC9D1\uAE30"
     AvailableFrom: 1
     AvailableUntil: 2
-  StonesPerReward: 30
+  StonesPerReward: 40
   MaxRewardRounds: 4
-  EarlyPhaseLastStone: 30
-  MiddlePhaseLastStone: 90
+  EarlyPhaseLastStone: 40
+  MiddlePhaseLastStone: 120
   acquisitionUI: {fileID: 1703576788}
   UseFixedSeed: 0
   FixedSeed: 12345

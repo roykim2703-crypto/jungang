@@ -24,10 +24,10 @@ public class CardManager : MonoBehaviour
     public List<CardData> CardList = new List<CardData>();
 
     [Header("카드 획득: 흑·백 합산 착수 수")]
-    [Min(1)] public int StonesPerReward = 30;
+    [Min(1)] public int StonesPerReward = 40;
     [Min(1)] public int MaxRewardRounds = 4;
-    [Min(1)] public int EarlyPhaseLastStone = 30;
-    [Min(2)] public int MiddlePhaseLastStone = 90;
+    [Min(1)] public int EarlyPhaseLastStone = 40;
+    [Min(2)] public int MiddlePhaseLastStone = 120;
     [SerializeField] private CardAcquisitionUI acquisitionUI;
     [Header("같은 시드와 카드 설정은 같은 순서로 추첨")]
     public bool UseFixedSeed;
@@ -76,6 +76,8 @@ public class CardManager : MonoBehaviour
     public bool CardUsedThisTurn => cardUsedThisTurn;
     public IReadOnlyList<CardData> BlackInventory => blackInventory;
     public IReadOnlyList<CardData> WhiteInventory => whiteInventory;
+    public bool AllAcquiredCardsUsed=>!IsChoosing&&blackInventory.Count>0&&whiteInventory.Count>0
+        &&blackInventory.TrueForAll(c=>c!=null&&c.Used)&&whiteInventory.TrueForAll(c=>c!=null&&c.Used);
     public event Action AcquisitionCompleted;
     public event Action<bool, CardData> CardAcquired;
     public event Action<PlayerSide, CardData> CardAcquiredForPlayer;
@@ -143,13 +145,15 @@ public class CardManager : MonoBehaviour
 
     /// <summary>일반 착수가 성공한 뒤 한 번 호출. 선택 중 호출은 카운트하지 않는다.</summary>
     public bool NotifyStonePlaced()
+        =>NotifyStonesPlaced(1);
+    public bool NotifyStonesPlaced(int count)
     {
-        if (IsChoosing) return false;
-        placedStoneCount++;
+        if (IsChoosing||count<=0) return false;
+        placedStoneCount+=count;
         RewardProgressChanged?.Invoke();
         if (!HasMoreRewards) return false;
         int targetStoneCount = rewardRoundCount * Mathf.Max(1, StonesPerReward);
-        if (placedStoneCount != targetStoneCount) return false;
+        if (placedStoneCount < targetStoneCount) return false;
         return TryOpenAcquisition();
     }
 

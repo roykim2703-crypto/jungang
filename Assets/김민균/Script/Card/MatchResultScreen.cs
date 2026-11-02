@@ -27,7 +27,8 @@ public sealed class MatchResultScreen : MonoBehaviour
         var panel=Rect("ResultPanel",backdrop,Vector2.zero,new Vector2(620,440));var image=panel.gameObject.AddComponent<Image>();image.color=new Color(.97f,.93f,.82f,.98f);
         var outline=panel.gameObject.AddComponent<Outline>();outline.effectColor=new Color(.95f,.65f,.16f);outline.effectDistance=new Vector2(5,-5);
         Label("Heading",panel,new Vector2(0,120),new Vector2(540,100),MatchReviewSession.Heading,66,new Color(.22f,.12f,.07f),FontStyles.Bold);
-        Label("Detail",panel,new Vector2(0,50),new Vector2(520,50),MatchReviewSession.Detail,25,new Color(.38f,.25f,.14f),FontStyles.Normal);
+        var detail=Label("Detail",panel,new Vector2(0,50),new Vector2(520,50),MatchReviewSession.Detail,25,new Color(.38f,.25f,.14f),FontStyles.Normal);
+        detail.enableAutoSizing=true;detail.fontSizeMin=17;detail.fontSizeMax=25;
         Label("Guide",panel,new Vector2(0,-5),new Vector2(520,50),"기보를 다시 보거나 메인 화면으로 이동할 수 있습니다",17,new Color(.42f,.36f,.28f),FontStyles.Normal);
         Button("Review",panel,new Vector2(-145,-110),new Vector2(250,64),"게임 복기",MatchReviewSession.RequestReview);
         Button("Home",panel,new Vector2(145,-110),new Vector2(250,64),"메인 화면",GoHome);

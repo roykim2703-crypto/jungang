@@ -20,7 +20,7 @@ public class AugmentAbilityCoverageTests
     {
         var b=new AugmentBoard();
         if(id==3||id==17)b.cells[9*19+9]=1;
-        if(id==5)b.cells[0]=1;
+        if(id==5){b.cells[0]=b.cells[2]=1;b.order[2]=2;}
         var random=new System.Random(12345);
         Assert.IsTrue(b.Ability(id,9,9,1,0,2,random.Next),"Ability "+id);
     }
