@@ -505,8 +505,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -179, y: 96}
-  m_SizeDelta: {x: 325.53, y: 140.99}
+  m_AnchoredPosition: {x: -158.92, y: 96}
+  m_SizeDelta: {x: 365.69, y: 140.99}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &581787765
 MonoBehaviour:
@@ -1115,6 +1115,7 @@ GameObject:
   - component: {fileID: 1319068148}
   - component: {fileID: 1319068147}
   - component: {fileID: 1319068151}
+  - component: {fileID: 1319068152}
   m_Layer: 5
   m_Name: Canvas
   m_TagString: Untagged
@@ -1229,6 +1230,36 @@ MonoBehaviour:
   howToPlayRequested:
     m_PersistentCalls:
       m_Calls: []
+  tutorial: {fileID: 1319068152}
+--- !u!114 &1319068152
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1319068146}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c99016a839ccd484fa062aa1bc6ac727, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HomeTutorial
+  frameImage: {fileID: 2800000, guid: 457ed74878056b648b8bbfabf28d42ae, type: 3}
+  font: {fileID: 11400000, guid: 6ca441b1906b526468aa944bdb56b07e, type: 2}
+  tutorialPages:
+  - title: "\uAE30\uBCF8 \uCC29\uC218\uC640 \uC721\uBAA9 \uC2B9\uB9AC"
+    description: "\uD751\uACFC \uBC31\uC774 \uBC88\uAC08\uC544 \uBE48 \uAD50\uCC28\uC810\uC5D0 \uB3CC\uC744 \uB193\uC2B5\uB2C8\uB2E4.\n\uAC00\uB85C\xB7\uC138\uB85C\xB7\uB300\uAC01\uC120\uC73C\uB85C \uB0B4 \uB3CC 6\uAC1C\uB97C \uC5F0\uC18D\uC73C\uB85C \uC774\uC73C\uBA74 \uC2B9\uB9AC\uD569\uB2C8\uB2E4."
+    cutscenes:
+    - {fileID: 21300000, guid: 333fe68b53950094ea7fff499eab3f33, type: 3}
+  - title: "\uC99D\uAC15 \uC0AC\uC6A9 \uD6C4 \uCC29\uC218 \uADDC\uCE59"
+    description: "\uC99D\uAC15\uC744 \uC4F4 \uB2E4\uC74C \uB3CC\uC744 \uB193\uC744 \uB54C\uB294 55\xB744\uC640 \uBB34\uC870\uAC74 \uC774\uAE30\uB294 \uC218\uAC00 \uAE08\uC9C0\uB429\uB2C8\uB2E4.\n\uD55C\uCABD\uC774 \uB9C9\uD78C 5\uB098 \uB2E8\uC77C 4 \uACF5\uACA9\uC740 \uAC00\uB2A5\uD569\uB2C8\uB2E4."
+    cutscenes:
+    - {fileID: 21300000, guid: 43e6694741fcefc43ba029a3292760c2, type: 3}
+  - title: "\uC99D\uAC15 \uCE74\uB4DC \uC120\uD0DD\uACFC \uC0AC\uC6A9"
+    description: "\uCE74\uB4DC \uC120\uD0DD \uD654\uBA74\uC5D0\uC11C \uC81C\uC2DC\uB41C 3\uC7A5 \uC911 1\uC7A5\uC744 \uACE0\uB974\uC138\uC694.\n\uB0B4 \uCC28\uB840\uC5D0 \uC99D\uAC15\uC744 \uCD5C\uB300 1\uC7A5 \uC0AC\uC6A9\uD558\uACE0, \uCC29\uC218 \uC81C\uD55C\uC744 \uD655\uC778\uD574 \uB3CC\uC744 \uB193\uC73C\uC138\uC694."
+    cutscenes:
+    - {fileID: 21300000, guid: 6f9ee1c87d0275847b8d9bad75151393, type: 3}
+  cutsceneInterval: 1
+  whiteFadeDuration: 0.2
 --- !u!1 &1559184459
 GameObject:
   m_ObjectHideFlags: 0

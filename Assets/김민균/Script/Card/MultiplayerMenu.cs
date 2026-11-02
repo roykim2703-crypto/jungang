@@ -86,6 +86,7 @@ public sealed class MultiplayerMenu : MonoBehaviour
         hud.AddComponent<Image>().color=new Color(.98f,.94f,.84f,.94f);
         hudStatus=Label("Status",hud.transform,new Vector2(-50,0),new Vector2(310,45),"",15);
         Button("ReturnHome",hud.transform,new Vector2(163,0),new Vector2(90,38),"나가기",async()=>await room.Leave());
+        Button("AudioSettings",hud.transform,new Vector2(0,-52),new Vector2(110,38),"소리 설정",AudioSettings.Open);
         modal.SetActive(false);hud.SetActive(false);
     }
     private void ChangeTime(int direction)
