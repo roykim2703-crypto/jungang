@@ -27,7 +27,7 @@
                   {
                       "Value":  3,
                       "Name":  3,
-                      "explanation":  "내 돌 하나를 선택 방향으로 1~3칸 날린다. 도착점의 돌은 한 칸 밀려나며, 밀려날 곳이 없으면 파괴된다.",
+                      "explanation":  "내 돌 하나를 뒤로 당겼다가 놓아 반대 방향으로 날린다. 당긴 거리가 힘이 되며, 충돌한 돌을 힘에 따라 여러 칸 밀거나 뚫고 계속 진행할 수 있다.",
                       "AvailableFrom":  0,
                       "DisplayName":  "알까기",
                       "AvailableUntil":  2
@@ -43,7 +43,7 @@
                   {
                       "Value":  5,
                       "Name":  5,
-                      "explanation":  "내 돌을 모두 회수하고 그 수만큼 같은 턴에 다시 배치한다. 재배치로 5목·6목·44를 만들 수 없다.",
+                      "explanation":  "내 돌을 회수하고 회수한 수만큼 같은 턴에 다시 배치한다. 5목·44·45·55는 허용하며, 6목 이상을 만드는 재배치만 금지된다.",
                       "AvailableFrom":  2,
                       "DisplayName":  "야리나오시다",
                       "AvailableUntil":  2
@@ -51,7 +51,7 @@
                   {
                       "Value":  2,
                       "Name":  6,
-                      "explanation":  "선택한 칸을 좌상단으로 하는 빈 2×2 영역에 내 돌 네 개를 생성한다.",
+                      "explanation":  "선택한 칸을 좌상단으로 하는 빈 2×2 영역에 큰 돌 하나를 만든다. 차지한 4칸 모두 내 돌로 취급하여 점유·연결·승리 판정에 포함한다.",
                       "AvailableFrom":  0,
                       "DisplayName":  "짱 큰 돌",
                       "AvailableUntil":  2
@@ -59,7 +59,7 @@
                   {
                       "Value":  3,
                       "Name":  8,
-                      "explanation":  "상대의 다음 일반 착수를 누구의 소유도 아닌 회색 박스로 바꾼다. 그 직후 내 턴에는 일반 착수로 6목을 완성할 수 없다.",
+                      "explanation":  "상대 몰래 다음 일반 착수를 무소유 회색돌로 바꾼다. 발동 연출은 없으며, 그 직후 내 턴에는 일반 착수로 6목을 완성할 수 없다.",
                       "AvailableFrom":  1,
                       "DisplayName":  "회색?",
                       "AvailableUntil":  2
@@ -67,7 +67,7 @@
                   {
                       "Value":  3.5,
                       "Name":  9,
-                      "explanation":  "선택한 칸에서 지정 방향으로 1~3칸 떨어진 곳에 내 돌을 던진다. 도착점의 돌은 한 칸 밀려나며 막히면 파괴된다.",
+                      "explanation":  "판 아래 투석기를 마우스로 조준하고 길게 눌러 5단계로 힘을 모은 뒤 놓아 발사한다. 세기별 사거리는 4·8·12·16·22칸이며, 판 밖 착탄은 실패한다. 착탄 칸의 돌은 밀거나 파괴한다.",
                       "AvailableFrom":  0,
                       "DisplayName":  "투석",
                       "AvailableUntil":  1
@@ -75,7 +75,7 @@
                   {
                       "Value":  4,
                       "Name":  10,
-                      "explanation":  "빈칸에 무소유 고정 박스를 설치한다. 모든 증강으로도 삭제하거나 이동하거나 색을 바꿀 수 없다.",
+                      "explanation":  "빈칸에 무소유 고정 돌을 설치한다. 모든 증강으로도 삭제하거나 이동하거나 색을 바꿀 수 없다.",
                       "AvailableFrom":  0,
                       "DisplayName":  "Stone",
                       "AvailableUntil":  1
@@ -91,7 +91,7 @@
                   {
                       "Value":  5,
                       "Name":  12,
-                      "explanation":  "상대가 다음에 일반 착수로 두는 돌을 내 색으로 바꾼다.",
+                      "explanation":  "상대 몰래 다음 일반 착수로 두는 돌을 내 색으로 바꾼다. 발동 이펙트와 상대에게 보이는 사용 알림은 없다.",
                       "AvailableFrom":  1,
                       "DisplayName":  "언제부터 \"흑돌\"을 두었다고 생각한거지?",
                       "AvailableUntil":  1
@@ -107,7 +107,7 @@
                   {
                       "Value":  4,
                       "Name":  14,
-                      "explanation":  "내 돌을 모두 없애고 선택한 칸에 거신 박스를 소환한다. 소환 턴 이후 내 턴을 세 번 완료할 때까지 살아 있으면 승리한다.",
+                      "explanation":  "내 돌을 없애고 선택한 칸에 거신병을 소환한다. 소환 연출 후 완성 본체가 칸에 남는다. 소환 턴 이후 내 턴을 세 번 완료할 때까지 생존하면 승리한다.",
                       "AvailableFrom":  2,
                       "DisplayName":  "체크메이트의 거신병",
                       "AvailableUntil":  2
@@ -115,7 +115,7 @@
                   {
                       "Value":  2,
                       "Name":  15,
-                      "explanation":  "선택한 칸 중심의 3×3 영역을 지우고 영구 금지 구역으로 만든다. 고정 박스는 보존된다.",
+                      "explanation":  "선택한 칸 중심의 3×3 영역을 지우고 회전하는 블랙홀 금지 구역으로 만든다. 영구 고정 돌은 보존된다.",
                       "AvailableFrom":  0,
                       "DisplayName":  "블랙홀",
                       "AvailableUntil":  1
@@ -123,7 +123,7 @@
                   {
                       "Value":  2,
                       "Name":  16,
-                      "explanation":  "빈칸에 상대 화면에서는 보이지 않는 내 돌을 생성한다. 돌의 점유와 승리 판정은 그대로 적용된다.",
+                      "explanation":  "본인에게만 반투명하게 보이는 돌을 만든다. 상대에게는 돌·금지 표시·설치 기보가 보이지 않는다. 상대가 그 칸에 착수하면 기존 돌이 드러나고 새 돌 없이 상대 턴이 끝난다.",
                       "AvailableFrom":  1,
                       "DisplayName":  "투명한 돌",
                       "AvailableUntil":  2
@@ -139,7 +139,7 @@
                   {
                       "Value":  1.5,
                       "Name":  18,
-                      "explanation":  "상대의 다음 일반 착수 위치를 내가 정한다. 돌 색은 상대 색이며, 상대는 증강을 사용할 수 있다.",
+                      "explanation":  "발동 연출 없이 상대의 다음 일반 착수 위치를 내가 정한다. 돌은 상대 색으로 놓이며, 상대는 자기 턴에 증강을 사용할 수 있다.",
                       "AvailableFrom":  1,
                       "DisplayName":  "내놔",
                       "AvailableUntil":  1

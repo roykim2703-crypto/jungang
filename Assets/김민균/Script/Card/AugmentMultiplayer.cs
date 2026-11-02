@@ -30,14 +30,22 @@ public sealed class AugmentMultiplayer : MonoBehaviour
     private int operation;
     private ulong? guest;
     private string code="",message="대국 방식을 선택하세요.";
-    private static readonly string[] Messages={"augment-lobby","augment-start","augment-ready","augment-command","augment-state"};
+    private int timeLimitSeconds=300;
+    private static readonly string[] Messages={"augment-lobby","augment-start","augment-ready","augment-command","augment-state","augment-settings"};
     public RoomStage Stage { get; private set; }
     public bool Active=>active;
     public bool IsHost=>network!=null&&network.IsHost;
     public string InvitationCode=>code;
     public string ConnectionStatus=>message;
     public bool IsConnecting=>busy;
+    public int TimeLimitSeconds=>timeLimitSeconds;
     public bool CanStart=>active&&IsHost&&guest.HasValue&&lobbyReady&&Stage==RoomStage.Lobby;
+    public void SetTimeLimitSeconds(int seconds)
+    {
+        if(active&&!IsHost||Stage==RoomStage.Loading||Stage==RoomStage.Playing)return;
+        timeLimitSeconds=Mathf.Clamp(seconds,60,3600);
+        if(active&&IsHost&&guest.HasValue)Send("augment-settings",timeLimitSeconds.ToString(),guest.Value);
+    }
     private void Awake()
     {
         if(instance!=null&&instance!=this){Destroy(gameObject);return;}
@@ -106,7 +114,8 @@ public sealed class AugmentMultiplayer : MonoBehaviour
         network.CustomMessagingManager.RegisterNamedMessageHandler(Messages[1],StartReceived);
         network.CustomMessagingManager.RegisterNamedMessageHandler(Messages[2],Ready);
         network.CustomMessagingManager.RegisterNamedMessageHandler(Messages[3],ReceiveCommand);
-        network.CustomMessagingManager.RegisterNamedMessageHandler(Messages[4],ReceiveState);registered=true;
+        network.CustomMessagingManager.RegisterNamedMessageHandler(Messages[4],ReceiveState);
+        network.CustomMessagingManager.RegisterNamedMessageHandler(Messages[5],ReceiveSettings);registered=true;
     }
     private void Connected(ulong client)
     {
@@ -116,14 +125,23 @@ public sealed class AugmentMultiplayer : MonoBehaviour
     {
         if(!IsHost||sender==NetworkManager.ServerClientId||guest.HasValue&&guest.Value!=sender)return;
         guest=sender;lobbyReady=true;message="참가자 연결 완료 · 대국을 시작할 수 있습니다.";
+        Send("augment-settings",timeLimitSeconds.ToString(),sender);
+    }
+    private void ReceiveSettings(ulong sender,FastBufferReader reader)
+    {
+        if(!active||IsHost||sender!=NetworkManager.ServerClientId||Stage!=RoomStage.Lobby)return;
+        reader.ReadValueSafe(out string value);if(int.TryParse(value,out int seconds))timeLimitSeconds=Mathf.Clamp(seconds,60,3600);
     }
     public void StartMatch()
     {
         if(!CanStart)return;
-        guestReady=false;Send("augment-start","start",guest.Value);LoadMatch();
+        guestReady=false;Send("augment-start",timeLimitSeconds.ToString(),guest.Value);LoadMatch();
     }
     private void StartReceived(ulong sender,FastBufferReader reader)
-    {if(active&&!IsHost&&sender==NetworkManager.ServerClientId&&Stage==RoomStage.Lobby)LoadMatch();}
+    {
+        if(!active||IsHost||sender!=NetworkManager.ServerClientId||Stage!=RoomStage.Lobby)return;
+        reader.ReadValueSafe(out string value);if(int.TryParse(value,out int seconds))timeLimitSeconds=Mathf.Clamp(seconds,60,3600);LoadMatch();
+    }
     private void LoadMatch()
     {
         Stage=RoomStage.Loading;message="양쪽 대국 화면을 준비하는 중입니다…";match=null;
@@ -136,7 +154,7 @@ public sealed class AugmentMultiplayer : MonoBehaviour
     }
     private void TryBeginMatch()
     {
-        if(!IsHost||!guestReady||match==null||Stage!=RoomStage.Loading)return;
+        if(!IsHost||!guestReady||match==null||!match.IsInitialized||Stage!=RoomStage.Loading)return;
         match.ResetMatch(Guid.NewGuid().GetHashCode());Stage=RoomStage.Playing;message="흑 · 내 차례에만 조작할 수 있습니다.";Broadcast();
     }
     private void Disconnected(ulong client)
@@ -150,18 +168,18 @@ public sealed class AugmentMultiplayer : MonoBehaviour
     }
     private void ReceiveCommand(ulong sender,FastBufferReader reader)
     {
-        if(!IsHost||guest!=sender||match==null||Stage!=RoomStage.Playing)return;
+        if(!IsHost||guest!=sender||match==null||match.IsReviewMode||Stage!=RoomStage.Playing)return;
         try
         {
             reader.ReadValueSafe(out string json);var command=JsonUtility.FromJson<AugmentMatch.Command>(json);
-            if(command==null||command.side!=2||command.kind=="meteor-impact")return;
+            if(command==null||command.side!=2||command.kind=="meteor-impact"||command.kind=="timeout")return;
             match.Apply(command);Broadcast();
         }
         catch(Exception e){Debug.LogWarning("대국 명령 거부: "+e.Message);}
     }
     private void ReceiveState(ulong sender,FastBufferReader reader)
     {
-        if(IsHost||sender!=NetworkManager.ServerClientId||match==null||!active)return;
+        if(IsHost||sender!=NetworkManager.ServerClientId||match==null||match.IsReviewMode||!active)return;
         try
         {
             reader.ReadValueSafe(out string json);match.Restore(json);Stage=RoomStage.Playing;message="백 · 내 차례에만 조작할 수 있습니다.";
@@ -176,7 +194,7 @@ public sealed class AugmentMultiplayer : MonoBehaviour
     }
     public void SendCommand(AugmentMatch.Command command)
     {if(active&&Stage==RoomStage.Playing)Send("augment-command",JsonUtility.ToJson(command),NetworkManager.ServerClientId);}
-    public void Broadcast(){if(guest.HasValue&&match!=null)Send("augment-state",match.Capture(),guest.Value);}
+    public void Broadcast(){if(guest.HasValue&&match!=null)Send("augment-state",match.CaptureForSide(2),guest.Value);}
     public async Task Leave(bool returnHome=true)
     {
         if(leaving)return;leaving=true;++operation;busy=false;active=false;

@@ -38,9 +38,10 @@ public static class CardAcquisitionSetup
         }
 
         Undo.RecordObject(manager, "Configure card rewards");
-        manager.StonesPerReward = 20;
-        manager.EarlyPhaseLastStone = 20;
-        manager.MiddlePhaseLastStone = 40;
+        manager.StonesPerReward = Mathf.Max(1,manager.StonesPerReward);
+        manager.MaxRewardRounds = 4;
+        manager.EarlyPhaseLastStone = manager.StonesPerReward;
+        manager.MiddlePhaseLastStone = manager.StonesPerReward*3;
         // Only seed the original empty catalog. Never replace authored card data.
         if (manager.CardList.Count == 1 && string.IsNullOrWhiteSpace(manager.CardList[0].explanation)
             && string.IsNullOrWhiteSpace(manager.CardList[0].DisplayName) && manager.CardList[0].ItemImage == null)
