@@ -12,7 +12,7 @@ public static class GameFlowSmokeChecks
     private static AugmentMatch match;
     private static void Require(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
     private static bool Send(string kind,int side=1,int x=9,int y=9,int id=0,int power=1)=>
-        match.Apply(new AugmentMatch.Command{kind=kind,side=side,x=x,y=y,id=id,dx=0,dy=-1,power=power,revision=match.Revision});
+        match.Apply(new AugmentMatch.Command{kind=kind,side=side,x=x,y=y,id=id,dx=0,dy=-1,power=power,revision=match.Revision,draftRound=match.Cards.RewardRoundCount});
     private static void SelectBoth()
     {
         Require(Send("select",1,id:0),"black selection failed");
@@ -50,15 +50,50 @@ public static class GameFlowSmokeChecks
             Require(!Send("place"),"placement accepted during draft");
             Require(!Send("select",2),"white selected before black");SelectBoth();
         });
-        Check("Four rewards at 0/40/80/120: Early/Middle/Middle/Late",()=>
+        Check("Online draft is simultaneous, private and accepts concurrent revisions only in its round",()=>
+        {
+            var room=AugmentMultiplayer.Instance;var active=typeof(AugmentMultiplayer).GetField("active",Private);
+            try
+            {
+                active.SetValue(room,true);match.ResetMatch(12345);
+                Require(match.LocalSide==2&&match.Cards.SimultaneousSelection,"online perspective unavailable");
+                var ui=UnityEngine.Object.FindAnyObjectByType<CardAcquisitionUI>(UnityEngine.FindObjectsInactive.Include);
+                Require(ui.WhiteGroup.activeSelf&&!ui.BlackGroup.activeSelf,"opponent draft displayed");
+                Require(ui.BlackSlots.All(s=>s.Title.text==""&&s.Artwork.sprite==null),"opponent offer retained in hidden UI");
+                var black=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(1));
+                var white=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(2));
+                Require(black.cards.whiteOffers.Length==0&&black.cards.blackOffers.Length==3&&white.cards.blackOffers.Length==0&&white.cards.whiteOffers.Length==3,"offer IDs leaked");
+                Require(black.cards.seed==0&&white.cards.seed==0,"draw seed leaked");
+                var concurrent=new AugmentMatch.Command{kind="select",side=1,id=1,revision=match.Revision,draftRound=1};
+                Require(Send("select",2,id:2),"white could not select first");
+                Require(match.Cards.IsChoosing&&match.Cards.HasSelected(false)&&!match.Cards.HasSelected(true),"draft ended before both choices");
+                Require(ui.WhiteSlots.All(s=>!s.Button.interactable)&&ui.WhiteStatus.text.Contains("기다리는"),"selected player not waiting");
+                black=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(1));
+                Require(black.cards.white.SequenceEqual(new[]{-1})&&black.cards.whiteUsed.All(v=>!v),"acquired card leaked");
+                Require(match.Apply(concurrent)&&!match.Cards.IsChoosing,"concurrent revision rejected");
+                Require(!match.Apply(concurrent),"duplicate choice accepted");
+                string projected=match.CaptureForSide(2);match.WaitForNetwork();match.Restore(projected);
+                Require(match.Cards.BlackInventory[0].Name==-1&&match.Cards.WhiteInventory[0].Name>=0,"private inventory restore failed");
+                var tabs=UnityEngine.Object.FindAnyObjectByType<CardSideTabUI>();tabs.RefreshAll();
+                var slots=(CardSideTabUI.CardButtonSlot[])typeof(CardSideTabUI).GetField("blackSlots",Private).GetValue(tabs);
+                Require(slots[0].Title.text=="비공개 증강"&&slots[0].Artwork.sprite==null&&!slots[0].Button.interactable,"opponent card visible in side tab");
+                match.ResetMatch(12345);Require(Send("select",2)&&Send("select",1),"second setup failed");
+                match.Cards.NotifyStonesPlaced(30);
+                Require(match.Cards.IsChoosing&&match.Cards.RewardRoundCount==2,"next round missing");
+                concurrent.revision=match.Revision;
+                Require(!match.Apply(concurrent),"previous round selection accepted in next draft");
+            }
+            finally{active.SetValue(room,false);match.ResetMatch(12345);}
+        });
+        Check("Four rewards at 0/30/60/90: Early/Middle/Middle/Late",()=>
         {
             match.ResetMatch(12345);var phases=new List<CardManager.AcquisitionPhase>();var counts=new List<int>();
-            for(int i=0;i<=125;i++)
+            for(int i=0;i<=95;i++)
             {
                 if(match.Cards.IsChoosing){counts.Add(match.Cards.PlacedStoneCount);phases.Add(match.Cards.GetPhase(match.Cards.PlacedStoneCount));SelectBoth();}
-                if(i<125)match.Cards.NotifyStonePlaced();
+                if(i<95)match.Cards.NotifyStonePlaced();
             }
-            Require(string.Join(",",counts)=="0,40,80,120","wrong reward intervals");
+            Require(string.Join(",",counts)=="0,30,60,90","wrong reward intervals");
             Require(string.Join(",",phases)=="Early,Middle,Middle,Late","wrong phases");
             Require(match.Cards.BlackInventory.Count==4&&match.Cards.WhiteInventory.Count==4&&!match.Cards.HasMoreRewards,"wrong inventory count");
             var ui=UnityEngine.Object.FindAnyObjectByType<CardSideTabUI>();
@@ -109,6 +144,136 @@ public static class GameFlowSmokeChecks
             Require(Send("place",x:0,y:0)&&Send("place",2,x:1,y:0),"placements failed");
             Require(match.Board.At(1,0)==1&&match.History[1].Contains("흑"),"converted stone/history mismatch");
         });
+        Check("Both flip results and removed cells reach the peer and survive later moves",()=>
+        {
+            for(int roll=0;roll<2;roll++)
+            {
+                Prepare(20);match.Board.cells[0]=match.Board.cells[2]=match.Board.cells[4]=1;match.Board.cells[19]=2;
+                int seed=0;while(new System.Random(seed).Next(0,2)!=roll)seed++;
+                typeof(CardManager).GetField("random",Private).SetValue(match.Cards,new System.Random(seed));
+                Require(Send("ability",id:20),"flip failed");
+                var host=match.CardOutcomes.Last();
+                Require(host.result.Contains(roll==0?"앞면":"뒷면"),"incorrect face text");
+                Require(host.removed.Length==(roll==0?0:3),"incorrect removal coordinates");
+                Require(Send("place",x:18,y:18),"following move failed");
+                string json=match.CaptureForSide(2);var peer=JsonUtility.FromJson<AugmentMatch.Snapshot>(json);
+                Require(peer.effect.result==host.result&&peer.outcomes.Last().result==host.result,"peer outcome differs");
+                Require(peer.effect.removed.SequenceEqual(host.removed),"peer markers differ");
+                Require(peer.effectRevision<peer.revision,"test did not advance beyond effect revision");
+                match.WaitForNetwork();match.Restore(json);
+                Require(match.CardOutcomes.Last().result==host.result,"restored result missing");
+            }
+        });
+        Check("Public results preserve secret traps and destroyed hidden-stone locations",()=>
+        {
+            foreach(int id in new[]{8,12,18,16})
+            {
+                Prepare(id);Require(Send("ability",id:id),"secret ability failed");
+                var peer=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(2));
+                Require((peer.effect==null||string.IsNullOrEmpty(peer.effect.kind))&&peer.outcomes.Length==0,"secret activation leaked");
+            }
+            Prepare(1);int hidden=9*19+9,visible=9*19+10;
+            match.Board.cells[hidden]=1;match.Board.hidden[hidden]=1;match.Board.cells[visible]=2;
+            Require(Send("ability",id:1),"shotgun failed");
+            var outcome=match.CardOutcomes.Last();
+            Require(outcome.removed.SequenceEqual(new[]{visible}),"hidden stone leaked in public markers");
+            Require(!outcome.changedCells.Contains(hidden),"hidden stone leaked in public motion fragments");
+            var publicState=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(2));
+            Require(publicState.outcomes.Last().removed.SequenceEqual(new[]{visible}),"peer marker privacy differs");
+        });
+        Check("Movement results do not label vacated cells as destroyed stones",()=>
+        {
+            Prepare(17);match.Board.cells[9*19+9]=1;
+            Require(Send("ability",id:17),"move ability failed");
+            Require(match.CardOutcomes.Last().removed.Length==0&&match.CardOutcomes.Last().result.Contains("이동 완료"),"movement reported as destruction");
+        });
+        Check("Every public ability exposes the same committed motion from either player",()=>
+        {
+            foreach(int side in new[]{1,2})foreach(int id in new[]{1,2,3,4,5,6,9,10,11,13,14,15,17,19,20})
+            {
+                Prepare(id);match.Board.turn=side;
+                var cards=match.Cards.Capture();cards.black=cards.white=new[]{id};cards.blackUsed=new[]{false};cards.whiteUsed=new[]{false};cards.turnBlack=side==1;match.Cards.Restore(cards);
+                if(id==3||id==17)match.Board.cells[180]=side;
+                if(id==5){match.Board.cells[0]=match.Board.cells[2]=side;match.Board.order[2]=2;}
+                if(id==11)
+                {
+                    Require(Send("meteor-start",side),"meteor start failed");match.Meteor.deadline=Time.realtimeSinceStartupAsDouble-1;
+                    Require(Send("meteor-impact",side),"meteor impact failed");
+                }
+                else Require(Send("ability",side,id:id),$"ability {id} failed for {side}");
+                string projected=match.CaptureForSide(3-side);
+                var peer=JsonUtility.FromJson<AugmentMatch.Snapshot>(projected);
+                Require(peer.effect.id==id&&peer.effect.side==side&&peer.effect.kind=="effect",$"ability {id} motion missing");
+                Require(peer.effect.changedCells.SequenceEqual(match.CardOutcomes.Last().changedCells),$"ability {id} delta differs");
+                Require(match.GetComponentsInChildren<AugmentEffectView>().Any(v=>v.name=="AugmentEffect_"+id),$"ability {id} did not spawn its motion");
+                match.ResetMatch(12345);match.WaitForNetwork();match.Restore(projected);
+                Require(match.GetComponentsInChildren<AugmentEffectView>().Any(v=>v.name=="AugmentEffect_"+id&&v.IsAbilityMotion),$"ability {id} did not play on observer");
+            }
+        });
+        Check("Snapshot catch-up plays every committed shotgun hit once without aim previews",()=>
+        {
+            Prepare(1);Require(Send("ability",id:1),"initial punch failed");
+            Require(Send("shotgun-hit",x:3,y:5)&&Send("shotgun-hit",x:13,y:12),"repeat hits failed");
+            string json=match.CaptureForSide(2);match.ResetMatch(12345);match.WaitForNetwork();match.Restore(json);
+            int CountFists()=>match.GetComponentsInChildren<AugmentEffectView>().Count(v=>v.name=="AugmentEffect_1");
+            Require(CountFists()==3,"catch-up lost a punch");
+            var target=(AugmentTargetView)typeof(AugmentMatch).GetField("targetView",Private).GetValue(match);
+            Require(target.GetComponentsInChildren<SpriteRenderer>().All(s=>!s.gameObject.activeInHierarchy),"observer received an aim range");
+            match.Restore(json);Require(CountFists()==3,"same snapshot duplicated punches");
+        });
+        Check("Meteor aim stays private until the committed impact is broadcast",()=>
+        {
+            Prepare(11);Require(Send("meteor-start",x:5,y:6),"charge failed");match.Meteor.clicks=13;
+            var owner=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(1));
+            var observer=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(2));
+            Require(owner.meteor.x==5&&owner.meteor.y==6&&owner.meteor.clicks==13,"owner charge masked");
+            Require(observer.meteor.x==-1&&observer.meteor.y==-1&&observer.meteor.clicks==0,"charge aim leaked");
+            Require(observer.outcomes.Length==0,"charge played impact early");
+            match.Meteor.deadline=Time.realtimeSinceStartupAsDouble-1;Require(Send("meteor-impact"),"impact failed");
+            observer=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(2));
+            Require(observer.effect.id==11&&observer.effect.x==5&&observer.effect.y==6&&observer.effect.power==3,"impact motion missing final target/power");
+        });
+        Check("Placement cues synchronize once and invalid clicks preserve the latest move",()=>
+        {
+            Prepare();Require(Send("place",x:9,y:9),"placement failed");
+            var state=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.Capture());
+            Require(state.placements.Length==1&&state.placements[0].cell==180&&state.placements[0].color==1,"wrong landing cue");
+            Require(state.placements[0].stamp==match.Board.order[180],"marker not linked to stone");
+            Require(!Send("place",2,x:9,y:9),"occupied placement accepted");
+            Require(JsonUtility.FromJson<AugmentMatch.Snapshot>(match.Capture()).placementRevision==state.placementRevision,"failed click changed marker");
+            string json=match.CaptureForSide(2);match.ResetMatch(12345);match.WaitForNetwork();match.Restore(json);
+            Require(JsonUtility.FromJson<AugmentMatch.Snapshot>(match.Capture()).placements[0].cell==180,"peer marker differs");
+            int CountPulses()=>match.GetComponentsInChildren<AugmentEffectView>().Count(v=>v.gameObject.name=="StonePlacementPulse");
+            int count=CountPulses();Require(count==1,"peer did not play landing pulse");
+            match.Restore(json);Require(CountPulses()==count,"clock sync replayed landing pulse");
+        });
+        Check("Black-hole placement records a move, remains playable, and synchronizes victory",()=>
+        {
+            Prepare();match.Board.cells[180]=5;
+            Require(Send("place"),"black-hole placement rejected");
+            Require(match.Board.At(9,9)==5&&match.Board.turn==2&&match.Cards.PlacedStoneCount==1,"swallowed move did not consume turn/progress");
+            Require(match.History.Last().Contains("블랙홀 소멸"),"swallowed move missing from history");
+            var peer=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(2));
+            Require(peer.board.At(9,9)==5&&peer.placements[0].cell==180,"peer landing/terrain differs");
+            Prepare();for(int x=0;x<5;x++)match.Board.cells[9*19+x]=1;match.Board.cells[9*19+5]=5;
+            Require(Send("place",x:5,y:9)&&match.Board.winner==1,"black-hole six did not win");
+            peer=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(2));
+            Require(peer.board.winner==1&&peer.board.At(5,9)==1,"winning placement missing from peer result");
+            Prepare();Array.Fill(match.Board.cells,3);match.Board.cells[180]=5;
+            Require(Send("place")&&match.Board.winner==0,"playable black hole caused a full-board finish");
+        });
+        Check("Premove landing cues include all three cells and hidden failures do not fake placement",()=>
+        {
+            Prepare();match.Board.blackPremoves=new[]{0,2,4,38,40,42};match.Board.turn=2;
+            Require(Send("place",2,x:18,y:18),"premove trigger failed");
+            var state=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(2));
+            Require(state.placements.Select(c=>c.cell).SequenceEqual(new[]{360,0,2,4}),"batch omitted a landing");
+            Prepare(16);Require(Send("ability",id:16),"hidden placement failed");
+            var hidden=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(2));
+            Require(hidden.placements.Length==0&&hidden.placementRevision==0,"hidden position leaked via landing cue");
+            match.Board.turn=2;Require(Send("place",2),"hidden collision failed");
+            Require(JsonUtility.FromJson<AugmentMatch.Snapshot>(match.Capture()).placements.Length==0,"failed placement played a landing cue");
+        });
         Check("Yarinaoshi reserves six private cells and replaces the next two turns",()=>
         {
             Prepare(5);match.Board.cells[0]=match.Board.cells[2]=1;match.Board.order[0]=1;match.Board.order[2]=2;
@@ -128,11 +293,11 @@ public static class GameFlowSmokeChecks
         Check("Premove batches cannot skip a reward threshold",()=>
         {
             Prepare(5);match.Board.cells[0]=match.Board.cells[2]=1;
-            match.Cards.NotifyStonesPlaced(38);
+            match.Cards.NotifyStonesPlaced(28);
             Require(Send("ability",id:5),"activation failed");
             for(int i=0;i<6;i++)Require(Send("premove",x:3+i*2,y:5),"reservation failed");
             Require(Send("place",x:18,y:18)&&Send("place",2,x:17,y:18),"placements failed");
-            Require(match.Cards.PlacedStoneCount==43&&match.Cards.IsChoosing&&match.Cards.RewardRoundCount==2,"batch skipped reward or lost stones");
+            Require(match.Cards.PlacedStoneCount==33&&match.Cards.IsChoosing&&match.Cards.RewardRoundCount==2,"batch skipped reward or lost stones");
         });
         Check("Occupied reservations skip a whole turn; black holes only consume their own stone",()=>
         {

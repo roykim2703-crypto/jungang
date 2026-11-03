@@ -15,11 +15,14 @@ public sealed class AugmentBoard
     public int[] giant = { -1, -1, -1 }, giantTurns = new int[3];
     public int piece = -1, pieceOwner, pieceKind;
     public int lastAbility = -1;
+    // 1: front (swap colors), 2: back (remove own stones). Chosen only by the host.
+    public int lastFlipResult;
     public int[] blackPremoves = new int[0], whitePremoves = new int[0];
     public int[] premoveIndex = new int[3];
     public int premoveSetup;
     [NonSerialized] public List<PremovePlacement> automaticPlacements = new List<PremovePlacement>();
     [NonSerialized] public int blockedPremoves;
+    [NonSerialized] public bool lastPlacementVanished;
     public struct PremovePlacement { public int cell,color; public bool vanished; }
     public int[] Premoves(int side)=>side==1?blackPremoves:whitePremoves;
     public bool HasPendingPremoves=>premoveSetup!=0||(blackPremoves.Length==6&&premoveIndex[1]<6)||(whitePremoves.Length==6&&premoveIndex[2]<6);
@@ -69,7 +72,12 @@ public sealed class AugmentBoard
     private int Run(int x, int y, int dx, int dy, int color,int viewer=0)
     {
         int n = 0;
-        for (x += dx, y += dy; Inside(x, y) && (viewer==0?At(x,y):VisibleAt(x,y,viewer)) == color; x += dx, y += dy) n++;
+        for (x += dx, y += dy; Inside(x, y); x += dx, y += dy)
+        {
+            int stone=viewer==0?At(x,y):VisibleAt(x,y,viewer);
+            if(stone!=color&&stone!=4)break;
+            n++;
+        }
         return n;
     }
     private static readonly Vector2Int[] Axes = { new Vector2Int(1,0), new Vector2Int(0,1), new Vector2Int(1,1), new Vector2Int(1,-1) };
@@ -77,7 +85,9 @@ public sealed class AugmentBoard
     public bool PreviewLegal(int x,int y,int color,bool augmented,int viewer)=>LegalForView(x,y,color,augmented,viewer);
     private bool LegalForView(int x, int y, int color, bool augmented,int viewer)
     {
-        if (!Inside(x,y) || (viewer==0?At(x,y):VisibleAt(x,y,viewer)) != 0 || winner != 0) return false;
+        if(!Inside(x,y)||winner!=0)return false;
+        int target=viewer==0?At(x,y):VisibleAt(x,y,viewer);
+        if(target!=0&&target!=5)return false;
         if (replay > 0)
         {
             foreach (var d in Axes)
@@ -91,7 +101,7 @@ public sealed class AugmentBoard
         foreach (var d in Axes)
         {
             int n = 1 + Run(x,y,d.x,d.y,color,viewer) + Run(x,y,-d.x,-d.y,color,viewer);
-            if ((augmented || noSix == color) && n >= 6) return false;
+            if (augmented && n >= 6) return false;
             if (n == 4) fours++; if (n == 5) fives++;
         }
         return !(color == 1 || augmented) || (fours < 2 && fives < 2 && (!augmented || fours == 0 || fives == 0));
@@ -102,6 +112,7 @@ public sealed class AugmentBoard
         revealedHiddenStone=false;
         automaticPlacements.Clear();
         blockedPremoves=0;
+        lastPlacementVanished=false;
         if(!Inside(x,y)||winner!=0||premoveSetup!=0)return false;
         int target=y*19+x;
         if(hidden[target]!=0&&hidden[target]!=turn)
@@ -113,13 +124,18 @@ public sealed class AugmentBoard
         }
         if (!Legal(x,y,turn,augmented)) return false;
         int p = y * 19 + x;
+        bool blackHole=cells[p]==5;
         PutStone(p);
         CheckWinner();
+        // The placed stone participates in victory before a non-winning stone is swallowed.
+        if(blackHole&&winner==0){RestoreBlackHole(p);lastPlacementVanished=true;}
         if (replay > 0) { replay--; if (replay > 0) return true; }
         FinishTurn(); return true;
     }
     private int PutStone(int p)
     {
+        // Only an accepted placement may temporarily occupy the protected black-hole terrain.
+        if(cells[p]==5)cells[p]=0;
         if(capture==turn)Capture(turn);
         int color = grayNext == turn ? 4 : convertNext == turn ? 3 - turn : turn;
         Set(p,color);
@@ -127,6 +143,10 @@ public sealed class AugmentBoard
         if (convertNext == turn) convertNext = 0;
         if (capture == turn) { Capture(turn); capture = 0; }
         return color;
+    }
+    private void RestoreBlackHole(int p)
+    {
+        cells[p]=5;hidden[p]=0;order[p]=++sequence;
     }
     private void FinishTurn()
     {
@@ -144,10 +164,22 @@ public sealed class AugmentBoard
                 if(cell<0||cell>=361||(cells[cell]!=0&&cells[cell]!=5))blocked=true;
             }
             if(blocked)blockedPremoves++;
-            else for(int i=index;i<index+3;i++)
+            else
             {
-                int cell=queue[i];bool vanished=cells[cell]==5;
-                automaticPlacements.Add(new PremovePlacement{cell=cell,color=PutStone(cell),vanished=vanished});
+                int first=automaticPlacements.Count;
+                for(int i=index;i<index+3;i++)
+                {
+                    int cell=queue[i];bool blackHole=cells[cell]==5;
+                    automaticPlacements.Add(new PremovePlacement{cell=cell,color=PutStone(cell),vanished=blackHole});
+                }
+                // All three reservations land together, including those inside black holes.
+                CheckWinner();
+                for(int i=first;i<automaticPlacements.Count;i++)
+                {
+                    var placement=automaticPlacements[i];if(!placement.vanished)continue;
+                    if(winner==0)RestoreBlackHole(placement.cell);
+                    else {placement.vanished=false;automaticPlacements[i]=placement;}
+                }
             }
             CheckWinner();FinishOneTurn();
         }
@@ -165,11 +197,15 @@ public sealed class AugmentBoard
     }
     public void CheckWinner()
     {
+        // Gray stones connect either color, but never constitute an owner by themselves.
+        // The one-turn gray penalty suppresses every six check, including ability/premove checks.
+        for (int pass=0;pass<2&&winner==0;pass++)
         for (int p = 0; p < 361 && winner == 0; p++)
         {
-            int color = cells[p]; if (color != 1 && color != 2) continue;
+            int color=pass==0?turn:3-turn;
+            if(cells[p]!=color||noSix==color)continue;
             foreach (var d in Axes)
-                if (1 + Run(p%19,p/19,d.x,d.y,color) >= 6) { winner = color; break; }
+                if (1 + Run(p%19,p/19,d.x,d.y,color)+Run(p%19,p/19,-d.x,-d.y,color) >= 6) { winner = color; break; }
         }
     }
     private void Capture(int owner)
@@ -389,7 +425,8 @@ public sealed class AugmentBoard
             case 19:
                 for(int ay=-1;ay<=1;ay++)for(int ax=-1;ax<=1;ax++)if(Inside(x+ax,y+ay))Set((y+ay)*19+x+ax,random(1,3));break;
             case 20:
-                if(random(0,2)==0) {for(int i=0;i<361;i++)if(cells[i]==1||cells[i]==2)Set(i,3-cells[i]);}
+                lastFlipResult=random(0,2)==0?1:2;
+                if(lastFlipResult==1) {for(int i=0;i<361;i++)if(cells[i]==1||cells[i]==2)Set(i,3-cells[i]);}
                 else {var owned=new List<int>();for(int i=0;i<361;i++)if(cells[i]==own)owned.Add(i);for(int i=0;i<3&&owned.Count>0;i++){int n=random(0,owned.Count);Set(owned[n],0);owned.RemoveAt(n);}}break;
             default:return false;
         }

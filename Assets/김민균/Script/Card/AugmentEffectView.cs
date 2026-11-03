@@ -6,6 +6,13 @@ using UnityEngine;
 public sealed class AugmentEffectView : MonoBehaviour
 {
     public bool IsGolemSummon { get; private set; }
+    public bool IsAbilityMotion { get; private set; }
+    public static bool IsAbilityAnimating(Transform parent)
+    {
+        if(parent==null)return false;
+        foreach(var effect in parent.GetComponentsInChildren<AugmentEffectView>())if(effect.IsAbilityMotion)return true;
+        return false;
+    }
     public static bool IsGolemSummoning(Transform parent)
     {
         if(parent==null)return false;
@@ -27,12 +34,91 @@ public sealed class AugmentEffectView : MonoBehaviour
         }
     }
     public static Color Tint(int id)=>Color.HSVToRGB(Mathf.Repeat(id*.137f,.999f),.55f,.95f);
-    public static void Play(Transform parent,가이드_돌_코드 guide,int id,int x,int y,int power,int[] before,int[] after,Vector2Int direction=default)
+    private static Material placementMaterial;
+    private static LineRenderer PlacementRing(Transform parent,Color color)
+    {
+        if(placementMaterial==null)placementMaterial=new Material(Shader.Find("Sprites/Default")){hideFlags=HideFlags.HideAndDontSave};
+        var go=new GameObject("LandingRing");go.transform.SetParent(parent,false);
+        var line=go.AddComponent<LineRenderer>();line.sharedMaterial=placementMaterial;
+        line.useWorldSpace=false;line.loop=true;line.positionCount=48;line.sortingOrder=119;
+        line.startColor=line.endColor=color;
+        for(int i=0;i<48;i++){float angle=i*Mathf.PI*2/48;line.SetPosition(i,new Vector3(Mathf.Cos(angle),Mathf.Sin(angle),0));}
+        return line;
+    }
+    public static void PlayPlacement(Transform parent,Vector3 position,float size,int color)
+    {
+        var root=new GameObject("StonePlacementPulse");root.transform.SetParent(parent,false);root.transform.position=position;
+        root.AddComponent<AugmentEffectView>().StartCoroutine(AnimatePlacement(root,size,color));
+    }
+    private static IEnumerator AnimatePlacement(GameObject root,float size,int color)
+    {
+        Color tint=color==2?new Color(.05f,.7f,1):color==4?new Color(.85f,.3f,1):new Color(1,.4f,.05f);
+        var first=PlacementRing(root.transform,tint);var second=PlacementRing(root.transform,tint);
+        var backFirst=PlacementRing(root.transform,Color.black);var backSecond=PlacementRing(root.transform,Color.black);
+        backFirst.sortingOrder=backSecond.sortingOrder=118;
+        for(float time=0;time<.65f;time+=Time.unscaledDeltaTime)
+        {
+            for(int i=0;i<2;i++)
+            {
+                var ring=i==0?first:second;float t=Mathf.Clamp01((time-i*.1f)/.52f);
+                var backing=i==0?backFirst:backSecond;
+                ring.enabled=time>=i*.1f;
+                backing.enabled=ring.enabled;
+                ring.transform.localScale=Vector3.one*size*Mathf.Lerp(.38f,.9f,1-Mathf.Pow(1-t,2));
+                backing.transform.localScale=ring.transform.localScale;
+                ring.startWidth=ring.endWidth=size*.055f*(1-t*.6f);
+                backing.startWidth=backing.endWidth=ring.startWidth+size*.025f;
+                var c=tint;c.a=(1-t)*.65f;ring.startColor=ring.endColor=c;
+                backing.startColor=backing.endColor=new Color(.12f,.08f,.03f,(1-t)*.45f);
+            }
+            yield return null;
+        }
+        Destroy(root);
+    }
+    public static GameObject CreatePlacementMarker(Transform parent,Vector3 position,float size)
+    {
+        var root=new GameObject("LastPlacementMarker");root.transform.SetParent(parent,false);root.transform.position=position;
+        var edge=Box(root.transform,new Color(1,.96f,.75f));edge.sortingOrder=116;
+        edge.transform.localScale=Vector3.one*size*.22f;edge.transform.localRotation=Quaternion.Euler(0,0,45);
+        var center=Box(root.transform,new Color(.92f,.18f,.12f));center.sortingOrder=117;
+        center.transform.localScale=Vector3.one*size*.13f;center.transform.localRotation=Quaternion.Euler(0,0,45);
+        return root;
+    }
+    public static void Play(Transform parent,가이드_돌_코드 guide,int id,int x,int y,int power,int[] before,int[] after,Vector2Int direction=default,int[] removedCells=null)
     {
         if(guide==null||AugmentVisibility.IsSecret(id))return;
         var root=new GameObject("AugmentEffect_"+id);root.transform.SetParent(parent,false);
-        var view=root.AddComponent<AugmentEffectView>();view.IsGolemSummon=id==14;
+        var view=root.AddComponent<AugmentEffectView>();view.IsGolemSummon=id==14;view.IsAbilityMotion=true;
         view.StartCoroutine(Animate(root,guide,id,x,y,power,before,after,direction));
+        if(removedCells!=null&&removedCells.Length>0)
+        {
+            var markers=new GameObject("RemovedStoneMarkers");markers.transform.SetParent(parent,false);
+            var markerView=markers.AddComponent<AugmentEffectView>();
+            markerView.StartCoroutine(ShowRemovedCells(markers,guide,removedCells));
+        }
+    }
+    private static IEnumerator ShowRemovedCells(GameObject root,가이드_돌_코드 guide,int[] cells)
+    {
+        var marks=new List<SpriteRenderer>();
+        foreach(int cell in cells)
+        {
+            if(cell<0||cell>=361)continue;
+            Vector3 pos=Position(guide,cell%19,cell/19);
+            var fill=Box(root.transform,new Color(1,.08f,.04f,.25f));fill.transform.position=pos;
+            fill.transform.localScale=Vector3.one*guide.gap*.95f;marks.Add(fill);
+            for(int i=0;i<2;i++)
+            {
+                var slash=Box(root.transform,new Color(1,.12f,.04f));slash.sortingOrder=115;
+                slash.transform.position=pos;slash.transform.rotation=Quaternion.Euler(0,0,i==0?45:-45);
+                slash.transform.localScale=new Vector3(guide.gap*.85f,guide.gap*.1f,1);marks.Add(slash);
+            }
+        }
+        for(float t=0;t<3f;t+=Time.unscaledDeltaTime)
+        {
+            foreach(var mark in marks){var c=mark.color;c.a=(mark.sortingOrder==115?1f:.25f)*Mathf.Clamp01((3f-t)*2);mark.color=c;}
+            yield return null;
+        }
+        Destroy(root);
     }
     private static Vector3 Position(가이드_돌_코드 guide,int x,int y)=>
         new Vector3(guide.centerPos.x+(x-9)*guide.gap,guide.centerPos.y-(y-9)*guide.gap,-.1f);

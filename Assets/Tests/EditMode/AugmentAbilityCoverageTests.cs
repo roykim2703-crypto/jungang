@@ -3,6 +3,23 @@ using UnityEngine;
 
 public class AugmentAbilityCoverageTests
 {
+    [TestCase(0,1)][TestCase(1,2)]
+    public void FlipOutcomeIsExplicitEvenOnAnEmptyBoardAndSurvivesSnapshot(int roll,int expected)
+    {
+        var board=new AugmentBoard();
+        Assert.IsTrue(board.Ability(20,9,9,1,0,1,(min,max)=>roll));
+        Assert.AreEqual(expected,board.lastFlipResult);
+        Assert.AreEqual(expected,JsonUtility.FromJson<AugmentBoard>(JsonUtility.ToJson(board)).lastFlipResult);
+    }
+    [Test]
+    public void FlipBackOnlyRemovesUpToThreeOwnStones()
+    {
+        var board=new AugmentBoard();for(int i=0;i<5;i++)board.cells[i*2]=1;
+        board.cells[19]=2;board.cells[20]=4;
+        int calls=0;Assert.IsTrue(board.Ability(20,9,9,1,0,1,(min,max)=>calls++==0?1:min));
+        Assert.AreEqual(2,System.Array.FindAll(board.cells,c=>c==1).Length);
+        Assert.AreEqual(2,board.cells[19]);Assert.AreEqual(4,board.cells[20]);
+    }
     [Test]
     public void MysteryBoxSkipsInvalidEffectsWithoutApplyingTheirChanges()
     {

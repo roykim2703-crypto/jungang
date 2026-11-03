@@ -15800,10 +15800,10 @@ MonoBehaviour:
     DisplayName: "\uD310 \uB4A4\uC9D1\uAE30"
     AvailableFrom: 1
     AvailableUntil: 2
-  StonesPerReward: 40
+  StonesPerReward: 30
   MaxRewardRounds: 4
-  EarlyPhaseLastStone: 40
-  MiddlePhaseLastStone: 120
+  EarlyPhaseLastStone: 30
+  MiddlePhaseLastStone: 90
   acquisitionUI: {fileID: 1703576788}
   UseFixedSeed: 0
   FixedSeed: 12345

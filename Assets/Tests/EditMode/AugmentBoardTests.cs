@@ -5,6 +5,34 @@ public class AugmentBoardTests
 {
     private static int First(int min,int max)=>min;
     [TestCase(1)][TestCase(2)]
+    public void BlackHoleAcceptsPlacementConsumesTurnAndRemainsAvailable(int side)
+    {
+        var b=new AugmentBoard{turn=side};b.cells[180]=5;
+        Assert.IsTrue(b.PreviewLegal(9,9,side,false,side));
+        Assert.IsTrue(b.Place(9,9,false));Assert.AreEqual(5,b.At(9,9));
+        Assert.IsTrue(b.lastPlacementVanished);Assert.AreEqual(0,b.winner);
+        Assert.AreEqual(3-side,b.turn);Assert.AreEqual(1,b.moves);
+        Assert.IsTrue(b.Place(9,9,false));Assert.AreEqual(5,b.At(9,9));Assert.AreEqual(2,b.moves);
+    }
+    [TestCase(1,1,0)][TestCase(2,1,0)][TestCase(1,0,1)][TestCase(2,0,1)]
+    [TestCase(1,1,1)][TestCase(2,1,1)][TestCase(1,1,-1)][TestCase(2,1,-1)]
+    public void WinningStoneInsideBlackHoleWinsBeforeItCanVanish(int side,int dx,int dy)
+    {
+        var b=new AugmentBoard{turn=side};
+        for(int i=0;i<5;i++)b.cells[(9+dy*i)*19+4+dx*i]=side;
+        int x=4+dx*5,y=9+dy*5;b.cells[y*19+x]=5;
+        Assert.IsTrue(b.Place(x,y,false));Assert.AreEqual(side,b.winner);
+        Assert.AreEqual(side,b.At(x,y));Assert.IsFalse(b.lastPlacementVanished);
+    }
+    [Test]
+    public void BlackHoleStillHonorsAugmentSixRestrictionAndGrayPenalty()
+    {
+        var b=new AugmentBoard();for(int i=0;i<5;i++)b.cells[9*19+i]=1;b.cells[9*19+5]=5;
+        Assert.IsFalse(b.Place(5,9,true));Assert.AreEqual(5,b.At(5,9));Assert.AreEqual(0,b.moves);
+        b.noSix=1;Assert.IsTrue(b.Place(5,9,false));Assert.AreEqual(0,b.winner);
+        Assert.AreEqual(5,b.At(5,9));Assert.IsTrue(b.lastPlacementVanished);
+    }
+    [TestCase(1)][TestCase(2)]
     public void HiddenStoneIsUnknownToOpponentUntilPlacementLosesTheirTurn(int owner)
     {
         var b=new AugmentBoard { turn=owner };
@@ -51,12 +79,53 @@ public class AugmentBoardTests
         b.Place(1,0,false);Assert.AreEqual(0,b.takeover);Assert.AreEqual(1,b.turn);
     }
     [Test]
-    public void GrayStoneHasNoOwnerAndPreventsFollowingPlayersSix()
+    public void GrayStoneHasNoOwnerAndSuppressesFollowingPlayersWinForOneTurn()
     {
         var b=new AugmentBoard();b.Ability(8,9,9,1,0,1,First);b.Place(0,0,true);b.Place(1,0,false);
         Assert.AreEqual(4,b.At(1,0));Assert.AreEqual(1,b.noSix);
         for(int x=0;x<5;x++)b.cells[9*19+x]=1;
-        Assert.IsFalse(b.Place(5,9,false));
+        Assert.IsTrue(b.Place(5,9,false),"The penalty suppresses victory, not placement.");
+        Assert.AreEqual(0,b.winner);Assert.AreEqual(0,b.noSix);
+    }
+    [TestCase(1,0,1)][TestCase(2,0,1)][TestCase(1,5,1)][TestCase(2,5,1)]
+    [TestCase(1,2,1)][TestCase(2,2,1)][TestCase(1,2,0)][TestCase(2,2,0)]
+    public void GrayStoneConnectsEitherSideAtStartMiddleOrEnd(int side,int grayIndex,int horizontal)
+    {
+        var b=new AugmentBoard{turn=side};
+        for(int i=0;i<6;i++)b.cells[(horizontal==1?8:3+i)*19+(horizontal==1?3+i:8)]=i==grayIndex?4:side;
+        b.CheckWinner();Assert.AreEqual(side,b.winner);
+    }
+    [Test]
+    public void GrayCannotConnectMixedColorsOrWinAlone()
+    {
+        var b=new AugmentBoard();for(int i=0;i<6;i++)b.cells[i]=4;
+        b.CheckWinner();Assert.AreEqual(0,b.winner);
+        b.cells[0]=1;b.cells[5]=2;b.CheckWinner();Assert.AreEqual(0,b.winner);
+    }
+    [TestCase(1)][TestCase(2)]
+    public void GrayPenaltyAlsoBlocksAbilityVictoryThenExpires(int side)
+    {
+        var b=new AugmentBoard{turn=side,noSix=side};
+        for(int i=0;i<5;i++)b.cells[9*19+i]=i==2?4:side;
+        Assert.IsTrue(b.Ability(2,5,9,1,0,1,First));Assert.AreEqual(0,b.winner);
+        Assert.IsTrue(b.Place(18,18,false));Assert.AreEqual(0,b.noSix);
+        b.CheckWinner();Assert.AreEqual(side,b.winner);
+    }
+    [TestCase(1)][TestCase(2)]
+    public void GrayPlacerCanWinImmediatelyUsingTheNewGrayStone(int side)
+    {
+        var b=new AugmentBoard{turn=side,grayNext=side};
+        for(int i=0;i<5;i++)b.cells[9*19+i]=side;
+        Assert.IsTrue(b.Place(5,9,false));Assert.AreEqual(4,b.At(5,9));Assert.AreEqual(side,b.winner);
+    }
+    [Test]
+    public void GrayPenaltySuppressesTheFollowingAutomaticPremoveTurn()
+    {
+        var b=new AugmentBoard{turn=2,grayNext=2,blackPremoves=new[]{0,2,4,38,40,42}};
+        for(int i=0;i<5;i++)b.cells[9*19+i]=1;
+        Assert.IsTrue(b.Place(5,9,false));
+        Assert.AreEqual(4,b.At(5,9));Assert.AreEqual(3,b.premoveIndex[1]);
+        Assert.AreEqual(2,b.turn);Assert.AreEqual(0,b.winner);Assert.AreEqual(0,b.noSix);
     }
     [Test]
     public void LegacyReplaySnapshotAllowsFiveAndKeepsTurnUntilAllStonesReplaced()

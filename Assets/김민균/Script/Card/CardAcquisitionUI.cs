@@ -39,6 +39,19 @@ public class CardAcquisitionUI : MonoBehaviour
     {
         gameObject.SetActive(true);
         string timing = stoneCount == 0 ? "게임 시작" : $"{stoneCount}수";
+        if(manager.SimultaneousSelection)
+        {
+            bool localBlack=AugmentMatch.Instance.LocalSide==1;
+            Heading.text=$"증강 선택  ·  {PhaseName(phase)}  ·  {timing}";
+            Bind(manager,localBlack?BlackSlots:WhiteSlots,localBlack?black:white,localBlack);
+            // Even the host's inactive UI must not retain the opponent's candidate text/artwork.
+            ClearSlots(localBlack?WhiteSlots:BlackSlots);
+            BlackStatus.text=WhiteStatus.text="";
+            (localBlack?BlackStatus:WhiteStatus).text=manager.HasSelected(localBlack)?"선택 완료 · 상대의 선택을 기다리는 중":"카드 1장을 선택하세요 · 양쪽 모두 선택하면 대국을 이어갑니다";
+            ShowPlayerStage(localBlack);
+            SetInteractable(localBlack?BlackSlots:WhiteSlots,!manager.HasSelected(localBlack));
+            return;
+        }
         Heading.text = $"흑 카드 선택  ·  {PhaseName(phase)}  ·  {timing}";
         BlackStatus.text = "흑 · 카드 1장을 선택하세요";
         WhiteStatus.text = "백 · 카드 1장을 선택하세요";
@@ -47,6 +60,17 @@ public class CardAcquisitionUI : MonoBehaviour
         ShowPlayerStage(true);
         SetInteractable(BlackSlots, true);
         SetInteractable(WhiteSlots, false);
+    }
+    private static void ClearSlots(CardSlot[] slots)
+    {
+        foreach(var slot in slots)
+        {
+            slot.Button.onClick.RemoveAllListeners();slot.Button.interactable=false;
+            slot.Title.text=slot.Description.text=slot.Value.text=slot.Timing.text="";
+            slot.Artwork.sprite=null;slot.Artwork.enabled=false;
+            var details=slot.Button.GetComponent<CardDetails>();
+            if(details!=null)details.Bind(slot.Title,"","",null,null);
+        }
     }
 
     private static void Bind(CardManager manager, CardSlot[] slots, CardManager.CardData[] cards, bool black)
@@ -78,6 +102,13 @@ public class CardAcquisitionUI : MonoBehaviour
 
     public void MarkSelected(bool black, int index)
     {
+        if(AugmentMatch.Instance!=null&&AugmentMatch.Instance.Cards.SimultaneousSelection)
+        {
+            if((AugmentMatch.Instance.LocalSide==1)!=black)return;
+            SetInteractable(black?BlackSlots:WhiteSlots,false);
+            (black?BlackStatus:WhiteStatus).text="선택 완료 · 상대의 선택을 기다리는 중";
+            return;
+        }
         CardSlot[] slots = black ? BlackSlots : WhiteSlots;
         SetInteractable(slots, false);
         (black ? BlackStatus : WhiteStatus).text = $"{(black ? "흑" : "백")} · {slots[index].Title.text} 획득 완료";

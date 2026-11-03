@@ -1,8 +1,10 @@
 using System;
+using System.Runtime.InteropServices;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 /// <summary>Functional room UI opened by the existing Home start button.</summary>
 public sealed class MultiplayerMenu : MonoBehaviour
@@ -15,6 +17,18 @@ public sealed class MultiplayerMenu : MonoBehaviour
     private TMP_FontAsset font;
     private bool visible;
     private string error="";
+    private TMP_Text copyLabel;
+    private string copyMessage="",copyCode="";
+    private float copyMessageUntil;
+    private bool copySucceeded;
+#if UNITY_WEBGL && !UNITY_EDITOR
+    private readonly Vector3[] copyCorners=new Vector3[4];
+    private bool webCopyVisible;
+    [DllImport("__Internal")] private static extern void Jungang_ClipboardUpdate(string text,float x,float y,float width,float height,float screenWidth,float screenHeight,int visible,int focused);
+    [DllImport("__Internal")] private static extern void Jungang_ClipboardCopyFallback();
+    [DllImport("__Internal")] private static extern int Jungang_ClipboardReadResult();
+    [DllImport("__Internal")] private static extern void Jungang_ClipboardHide();
+#endif
     private static readonly int[] TimeOptions={180,300,600,900,1200};
     public static void Open()
     {
@@ -37,11 +51,18 @@ public sealed class MultiplayerMenu : MonoBehaviour
         input.interactable=offline;join.interactable=offline&&input.text.Trim().Length>=4;
         start.interactable=room.CanStart;leave.interactable=room.Active||room.IsConnecting;
         copy.interactable=room.Active&&!string.IsNullOrEmpty(room.InvitationCode);
+        if(copyCode!=room.InvitationCode){copyCode=room.InvitationCode;copyMessageUntil=0;}
+#if UNITY_WEBGL && !UNITY_EDITOR
+        int copyResult=Jungang_ClipboardReadResult();
+        if(copyResult!=0)ShowCopyResult(copyResult>0);
+#endif
+        bool copyNotice=Time.unscaledTime<copyMessageUntil;
+        copyLabel.text=copyNotice&&copySucceeded?"복사됨":"복사";
         close.interactable=!room.IsConnecting;
         bool canEditTime=offline||room.Active&&room.IsHost&&room.Stage==AugmentMultiplayer.RoomStage.Lobby;
         timeDown.interactable=timeUp.interactable=canEditTime;
         timeLimit.text=$"인당 제한시간  {room.TimeLimitSeconds/60}분";
-        status.text=string.IsNullOrEmpty(error)?room.ConnectionStatus:error;
+        status.text=copyNotice?copyMessage:string.IsNullOrEmpty(error)?room.ConnectionStatus:error;
         code.text=string.IsNullOrEmpty(room.InvitationCode)?"초대코드 · 방을 만들면 표시됩니다":"초대코드  "+room.InvitationCode;
         string side=room.Active?(room.IsHost?"흑":"백"):"로컬";
         hudStatus.text=side+" · "+(room.Stage==AugmentMultiplayer.RoomStage.Playing&&AugmentMatch.Instance!=null?AugmentMatch.Instance.Status:room.Active?room.ConnectionStatus:"대국 진행 중");
@@ -76,7 +97,8 @@ public sealed class MultiplayerMenu : MonoBehaviour
         join=Button("Join",panel,new Vector2(210,42),new Vector2(100,48),"참가",async()=>
         {error="";try{await room.JoinByCodeAsync(input.text);}catch(Exception e){error=e.Message;}});
         code=Label("RoomCode",panel,new Vector2(-40,-22),new Vector2(440,50),"",22);
-        copy=Button("Copy",panel,new Vector2(220,-22),new Vector2(80,40),"복사",()=>GUIUtility.systemCopyBuffer=room.InvitationCode);
+        copy=Button("Copy",panel,new Vector2(220,-22),new Vector2(80,40),"복사",CopyInvitationCode);
+        copyLabel=copy.GetComponentInChildren<TMP_Text>();
         Label("Sides",panel,new Vector2(0,-72),new Vector2(540,40),"방장: 흑 · 참가자: 백 · 2인 대국",17);
         start=Button("Start",panel,new Vector2(0,-128),new Vector2(520,48),"두 사람 준비 완료 후 대국 시작",()=>{error="";room.StartMatch();});
         leave=Button("Leave",panel,new Vector2(-135,-245),new Vector2(250,44),"방 나가기 / 연결 취소",async()=>{error="";await room.Leave();});
@@ -95,6 +117,38 @@ public sealed class MultiplayerMenu : MonoBehaviour
         for(int i=0;i<TimeOptions.Length;i++){int delta=Mathf.Abs(TimeOptions[i]-room.TimeLimitSeconds);if(delta<best){best=delta;current=i;}}
         current=(current+direction+TimeOptions.Length)%TimeOptions.Length;room.SetTimeLimitSeconds(TimeOptions[current]);
     }
+    private void CopyInvitationCode()
+    {
+        if(!copy.interactable||string.IsNullOrEmpty(room.InvitationCode))return;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        Jungang_ClipboardCopyFallback();
+#else
+        GUIUtility.systemCopyBuffer=room.InvitationCode;
+        ShowCopyResult(GUIUtility.systemCopyBuffer==room.InvitationCode);
+#endif
+    }
+    private void ShowCopyResult(bool success)
+    {
+        copySucceeded=success;
+        copyMessage=success?"초대코드가 복사되었습니다.":"자동 복사가 차단되었습니다. 표시된 초대코드를 직접 복사해 주세요.";
+        copyMessageUntil=Time.unscaledTime+3f;
+    }
+#if UNITY_WEBGL && !UNITY_EDITOR
+    private void LateUpdate()
+    {
+        bool show=modal!=null&&modal.activeInHierarchy&&copy.interactable&&!AudioSettings.IsOpen;
+        if(!show){if(webCopyVisible)Jungang_ClipboardHide();webCopyVisible=false;return;}
+        var rect=(RectTransform)copy.transform;rect.GetWorldCorners(copyCorners);
+        var canvas=copy.GetComponentInParent<Canvas>();
+        Camera camera=canvas.renderMode==RenderMode.ScreenSpaceOverlay?null:canvas.worldCamera;
+        Vector2 bottom=RectTransformUtility.WorldToScreenPoint(camera,copyCorners[0]);
+        Vector2 top=RectTransformUtility.WorldToScreenPoint(camera,copyCorners[2]);
+        bool focused=EventSystem.current!=null&&EventSystem.current.currentSelectedGameObject==copy.gameObject;
+        Jungang_ClipboardUpdate(room.InvitationCode,bottom.x,bottom.y,top.x-bottom.x,top.y-bottom.y,Screen.width,Screen.height,1,focused?1:0);
+        webCopyVisible=true;
+    }
+    private void OnDisable(){if(webCopyVisible)Jungang_ClipboardHide();webCopyVisible=false;}
+#endif
     private static RectTransform Rect(string name,Transform parent,Vector2 position,Vector2 size)
     {
         var rect=new GameObject(name,typeof(RectTransform)).GetComponent<RectTransform>();rect.SetParent(parent,false);

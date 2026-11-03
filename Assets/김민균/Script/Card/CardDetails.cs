@@ -6,6 +6,7 @@ using UnityEngine.UI;
 /// <summary>A compact card expands into a readable card without intercepting clicks.</summary>
 public sealed class CardDetails : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
+    private const float PreviewWidth = 400f;
     private static CardDetails current;
     private TMP_Text sourceTitle;
     private string title, description, grade;
@@ -40,27 +41,44 @@ public sealed class CardDetails : MonoBehaviour, IPointerEnterHandler, IPointerE
         opacity = overlay.GetComponent<CanvasGroup>();
         opacity.blocksRaycasts = false; opacity.interactable = false; opacity.alpha = 0;
         preview = MakeRect("Card", overlay.transform);
-        preview.sizeDelta = new Vector2(320, 480);
-        var face = preview.gameObject.AddComponent<Image>();
+        preview.sizeDelta = new Vector2(PreviewWidth, 480);
+        var frameRect = MakeRect("Frame", preview);
+        frameRect.anchorMin = Vector2.zero; frameRect.anchorMax = Vector2.one;
+        frameRect.offsetMin = frameRect.offsetMax = Vector2.zero;
+        var face = frameRect.gameObject.AddComponent<Image>();
         face.sprite = frame; face.color = frame == null ? new Color(1f, .96f, .86f) : Color.white;
         face.raycastTarget = false;
-        var shadow = preview.gameObject.AddComponent<Shadow>();
+        var shadow = frameRect.gameObject.AddComponent<Shadow>();
         shadow.effectColor = new Color(0, 0, 0, .4f); shadow.effectDistance = new Vector2(5, -5);
         TMP_Text heading = MakeText("Title", title, 24, TextAlignmentOptions.Center);
         TMP_Text body = MakeText("Description", description, 18, TextAlignmentOptions.TopLeft);
         TMP_Text value = MakeText("Grade", grade, 20, TextAlignmentOptions.Center);
-        float titleHeight = Mathf.Max(42, heading.GetPreferredValues(title, 268, 0).y + 8);
-        float bodyHeight = Mathf.Max(96, body.GetPreferredValues(description, 268, 0).y + 12);
-        float gradeHeight = Mathf.Max(24, value.GetPreferredValues(grade, 268, 0).y + 8);
-        float height = titleHeight + bodyHeight + 194 + gradeHeight;
-        preview.sizeDelta = new Vector2(320, height);
-        Place(heading.rectTransform, 24, titleHeight, 268);
-        var imageRect = MakeRect("Artwork", preview);
-        Place(imageRect, 36 + titleHeight, 128, 244);
+        float titleHeight = Mathf.Max(42, heading.GetPreferredValues(title, PreviewWidth * .84f, 0).y + 8);
+        float bodyHeight = Mathf.Max(96, body.GetPreferredValues(description, PreviewWidth * .78f, 0).y + 12);
+        float gradeHeight = Mathf.Max(24, value.GetPreferredValues(grade, PreviewWidth * .72f, 0).y + 8);
+        // Keep every element inside its printed slot as the card grows for long descriptions.
+        float height = Mathf.Max(PreviewWidth * 169f / 100f, titleHeight / .13f, bodyHeight / .23f, gradeHeight / .08f);
+        preview.sizeDelta = new Vector2(PreviewWidth, height);
+        Place(heading.rectTransform, height * .055f, height * .13f, PreviewWidth * .84f);
+        var window = MakeRect("ArtworkWindow", preview);
+        Place(window, height * .22f, height * .34f, PreviewWidth * .80f);
+        window.SetSiblingIndex(frame == null ? 1 : 0);
+        var paper = window.gameObject.AddComponent<Image>();
+        paper.color = new Color(1f, .98f, .93f); paper.raycastTarget = false;
+        window.gameObject.AddComponent<RectMask2D>();
+        var imageRect = MakeRect("Artwork", window);
+        imageRect.anchorMin = imageRect.anchorMax = imageRect.pivot = new Vector2(.5f, .5f);
+        imageRect.anchoredPosition = Vector2.zero;
         Image picture = imageRect.gameObject.AddComponent<Image>();
-        picture.sprite = artwork; picture.preserveAspect = true; picture.raycastTarget = false; picture.enabled = artwork != null;
-        Place(body.rectTransform, 180 + titleHeight, bodyHeight, 268);
-        Place(value.rectTransform, height - gradeHeight - 6, gradeHeight, 268);
+        picture.sprite = artwork; picture.raycastTarget = false; picture.enabled = artwork != null;
+        if (artwork != null)
+        {
+            var fit = imageRect.gameObject.AddComponent<AspectRatioFitter>();
+            fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+            fit.aspectRatio = artwork.rect.width / Mathf.Max(1, artwork.rect.height);
+        }
+        Place(body.rectTransform, height * .57f, height * .23f, PreviewWidth * .78f);
+        Place(value.rectTransform, height * .845f, height * .08f, PreviewWidth * .72f);
 
         Canvas originalCanvas = GetComponentInParent<Canvas>();
         Camera camera = originalCanvas != null && originalCanvas.renderMode != RenderMode.ScreenSpaceOverlay ? originalCanvas.worldCamera : null;
@@ -68,9 +86,9 @@ public sealed class CardDetails : MonoBehaviour, IPointerEnterHandler, IPointerE
         Vector2 bottomLeft = RectTransformUtility.WorldToScreenPoint(camera, corners[0]);
         Vector2 topRight = RectTransformUtility.WorldToScreenPoint(camera, corners[2]);
         startPosition = (bottomLeft + topRight) * .5f;
-        finalScale = Mathf.Min(1f, (Screen.height - 24f) / height, (Screen.width - 24f) / 320f);
+        finalScale = Mathf.Min(1f, (Screen.height - 24f) / height, (Screen.width - 24f) / PreviewWidth);
         startScale = Mathf.Min(finalScale, Mathf.Max(.1f, (topRight.y - bottomLeft.y) / height));
-        float halfWidth = 160 * finalScale, halfHeight = height * finalScale * .5f;
+        float halfWidth = PreviewWidth * .5f * finalScale, halfHeight = height * finalScale * .5f;
         float x = startPosition.x > Screen.width * .5f ? bottomLeft.x - halfWidth - 12 : topRight.x + halfWidth + 12;
         endPosition = new Vector2(Mathf.Clamp(x, halfWidth + 12, Screen.width - halfWidth - 12),
             Mathf.Clamp(startPosition.y, halfHeight + 12, Screen.height - halfHeight - 12));

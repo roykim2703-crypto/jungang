@@ -68,6 +68,19 @@ public class YarinaoshiTests
         Assert.AreEqual(1,b.At(3,5));Assert.AreEqual(5,b.At(5,5));Assert.AreEqual(1,b.At(7,5));
         Assert.AreEqual(3,b.automaticPlacements.Count);Assert.IsTrue(b.automaticPlacements[1].vanished);
     }
+    [TestCase(1)][TestCase(2)]
+    public void ThreeBlackHolePremovesCanCompleteSixBeforeBeingSwallowed(int side)
+    {
+        var b=new AugmentBoard{turn=3-side};
+        for(int x=0;x<3;x++)b.cells[9*19+x]=side;
+        for(int x=3;x<6;x++)b.cells[9*19+x]=5;
+        int[] queue={9*19+3,9*19+4,9*19+5,0,2,4};
+        if(side==1)b.blackPremoves=queue;else b.whitePremoves=queue;
+        Assert.IsTrue(b.Place(18,18,false));Assert.AreEqual(side,b.winner);
+        Assert.AreEqual(3,b.automaticPlacements.Count);
+        for(int x=0;x<6;x++)Assert.AreEqual(side,b.At(x,9));
+        Assert.IsTrue(b.automaticPlacements.TrueForAll(p=>!p.vanished));
+    }
     [Test]
     public void PremoveHasNoForbiddenMoveRestrictionAndCanWinWithSix()
     {

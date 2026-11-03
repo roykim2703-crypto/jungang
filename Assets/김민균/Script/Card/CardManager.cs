@@ -24,10 +24,10 @@ public class CardManager : MonoBehaviour
     public List<CardData> CardList = new List<CardData>();
 
     [Header("카드 획득: 흑·백 합산 착수 수")]
-    [Min(1)] public int StonesPerReward = 40;
+    [Min(1)] public int StonesPerReward = 30;
     [Min(1)] public int MaxRewardRounds = 4;
-    [Min(1)] public int EarlyPhaseLastStone = 40;
-    [Min(2)] public int MiddlePhaseLastStone = 120;
+    [Min(1)] public int EarlyPhaseLastStone = 30;
+    [Min(2)] public int MiddlePhaseLastStone = 90;
     [SerializeField] private CardAcquisitionUI acquisitionUI;
     [Header("같은 시드와 카드 설정은 같은 순서로 추첨")]
     public bool UseFixedSeed;
@@ -48,6 +48,8 @@ public class CardManager : MonoBehaviour
     private bool whiteSelected;
     private bool turnInitialized;
     public bool IsChoosing { get; private set; }
+    public bool SimultaneousSelection=>AugmentMatch.Instance!=null&&AugmentMatch.Instance.LocalSide!=0;
+    public bool HasSelected(bool black)=>black?blackSelected:whiteSelected;
     public int CurrentSeed => currentSeed;
     public int PlacedStoneCount => placedStoneCount;
     public int RewardRoundCount => rewardRoundCount;
@@ -191,7 +193,7 @@ public class CardManager : MonoBehaviour
         if (AugmentMatch.Instance != null && !AugmentMatch.Instance.ApplyingCommand)
             return AugmentMatch.Instance.RequestSelection(black, slot);
         if (!IsChoosing || slot < 0 || slot >= 3 || (black ? blackSelected : whiteSelected)) return false;
-        if (!black && !blackSelected) return false;
+        if (!SimultaneousSelection&&!black && !blackSelected) return false;
         CardData source = (black ? blackOffers : whiteOffers)[slot];
         // 소유 상태는 카드 원본과 분리해 두 플레이어가 각각 보관한다.
         var acquired = new CardData
@@ -286,11 +288,13 @@ public class CardManager : MonoBehaviour
 
     private CardData CopyCard(int id, bool used = false)
     {
+        if(id<0)return HiddenCard();
         CardData source = CardList.Find(c => c.Name == id);
         return new CardData { Name = id, DisplayName = source.DisplayName, explanation = source.explanation,
             Value = source.Value, ItemImage = source.ItemImage, AvailableFrom = source.AvailableFrom,
             AvailableUntil = source.AvailableUntil, Used = used, Have = !used };
     }
+    public static CardData HiddenCard()=>new CardData{Name=-1,DisplayName="비공개 증강",explanation="상대의 후보와 획득한 증강은 공개되지 않습니다.",Have=false};
 
     public void Restore(MatchCards state)
     {
@@ -305,7 +309,7 @@ public class CardManager : MonoBehaviour
         if (IsChoosing)
         {
             acquisitionUI.Show(this, blackOffers, whiteOffers, GetPhase(placedStoneCount), placedStoneCount);
-            if (blackSelected) acquisitionUI.MarkSelected(true, Array.FindIndex(blackOffers, c => c.Name == blackInventory[blackInventory.Count - 1].Name));
+            if (!SimultaneousSelection&&blackSelected&&blackInventory.Count>0) acquisitionUI.MarkSelected(true, Array.FindIndex(blackOffers, c => c.Name == blackInventory[blackInventory.Count - 1].Name));
         }
         else acquisitionUI.Hide();
         CardAvailabilityChanged?.Invoke(); RewardProgressChanged?.Invoke();

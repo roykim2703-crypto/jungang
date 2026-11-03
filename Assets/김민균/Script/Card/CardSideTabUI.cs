@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -36,6 +37,9 @@ public class CardSideTabUI : MonoBehaviour
     public int DisplayedSeed => cardManager == null ? 0 : cardManager.CurrentSeed;
     private bool subscribed;
     private bool matchSubscribed;
+    private readonly List<int> historyStoneColors=new List<int>();
+    private readonly List<Image> historyStoneImages=new List<Image>();
+    private static readonly Regex HistorySide=new Regex(@"^(\d+\.\s+)?(회색|흑|백)(?=\s|\(|$)");
 
     private void Awake()
     {
@@ -167,19 +171,20 @@ public class CardSideTabUI : MonoBehaviour
 
     private void RefreshMoveHistory()
     {
+        historyStoneColors.Clear();
         if(moveHistoryLabel!=null&&AugmentMatch.Instance!=null&&AugmentMatch.Instance.IsReviewMode)
         {
             var reviewLines=new List<string>();
             for(int i=0;i<MatchReviewSession.Frames.Count;i++)
             {
-                string line=MatchReviewSession.Frames[i].label;
+                string line=FormatHistoryLine(MatchReviewSession.Frames[i].label);
                 reviewLines.Add(i==AugmentMatch.Instance.ReviewIndex?$"<color=#F4B52C>▶ {line}</color>":$"   {line}");
             }
             moveHistoryLabel.text=reviewLines.Count==0?"기보":string.Join("\n",reviewLines);ResizeMoveHistoryAndShowLatest(false);return;
         }
         if (moveHistoryLabel != null && AugmentMatch.Instance != null)
         {
-            string content=AugmentMatch.Instance.History.Count == 0 ? "기보" : string.Join("\n", AugmentMatch.Instance.History);
+            string content=AugmentMatch.Instance.History.Count == 0 ? "기보" : string.Join("\n", AugmentMatch.Instance.History.Select(FormatHistoryLine));
             bool changed=moveHistoryLabel.text!=content;
             moveHistoryLabel.text=content;
             ResizeMoveHistoryAndShowLatest(changed);
@@ -192,10 +197,48 @@ public class CardSideTabUI : MonoBehaviour
         {
             CardMoveRecord move = history[i];
             string color = move.Player == CardManager.PlayerSide.Black ? "흑" : "백";
-            lines.Add($"{move.Sequence}. {color} ({move.BoardPosition.x + 1},{move.BoardPosition.y + 1})");
+            lines.Add(FormatHistoryLine($"{move.Sequence}. {color} ({move.BoardPosition.x + 1},{move.BoardPosition.y + 1})"));
         }
         moveHistoryLabel.text = lines.Count == 0 ? "기보" : string.Join("\n", lines);
         ResizeMoveHistoryAndShowLatest();
+    }
+    private string FormatHistoryLine(string line)
+    {
+        return HistorySide.Replace(line??"",match=>
+        {
+            historyStoneColors.Add(match.Groups[2].Value=="흑"?1:match.Groups[2].Value=="백"?2:4);
+            // Reserve a full icon slot while retaining TMP's original line/click geometry.
+            return match.Groups[1].Value+"<mspace=1.4em><color=#00000000>O</color></mspace>";
+        });
+    }
+    private void RefreshHistoryStoneImages()
+    {
+        var guide=FindAnyObjectByType<가이드_돌_코드>();
+        int icon=0;
+        if(guide!=null)
+        {
+            var info=moveHistoryLabel.textInfo;
+            for(int i=0;i<info.characterCount&&icon<historyStoneColors.Count;i++)
+            {
+                var character=info.characterInfo[i];
+                if(character.character!='O'||character.color.a!=0)continue;
+                if(icon==historyStoneImages.Count)
+                {
+                    var go=new GameObject("HistoryStone",typeof(RectTransform),typeof(CanvasRenderer),typeof(Image));
+                    go.transform.SetParent(moveHistoryLabel.transform,false);
+                    var image=go.GetComponent<Image>();image.raycastTarget=false;image.preserveAspect=true;
+                    historyStoneImages.Add(image);
+                }
+                int color=historyStoneColors[icon];var stone=historyStoneImages[icon++];
+                stone.sprite=color==1?guide.검은돌이미지:guide.흰돌이미지;
+                stone.color=color==4?Color.gray:Color.white;stone.gameObject.SetActive(true);
+                var rect=stone.rectTransform;rect.anchorMin=rect.anchorMax=moveHistoryLabel.rectTransform.pivot;
+                rect.pivot=new Vector2(.5f,.5f);
+                rect.sizeDelta=Vector2.one*character.pointSize*1.15f;
+                rect.anchoredPosition=new Vector2((character.origin+character.xAdvance)*.5f,(character.ascender+character.descender)*.5f);
+            }
+        }
+        for(int i=icon;i<historyStoneImages.Count;i++)historyStoneImages[i].gameObject.SetActive(false);
     }
 
     private void ResizeMoveHistoryAndShowLatest(bool showLatest=true)
@@ -209,6 +252,7 @@ public class CardSideTabUI : MonoBehaviour
         float contentHeight = Mathf.Max(viewportHeight, moveHistoryLabel.preferredHeight + 8f);
         textRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, contentHeight);
         Canvas.ForceUpdateCanvases();
+        moveHistoryLabel.ForceMeshUpdate();RefreshHistoryStoneImages();
         if(showLatest)moveHistoryScrollRect.verticalNormalizedPosition = 0f;
     }
 
@@ -240,27 +284,26 @@ public class CardSideTabUI : MonoBehaviour
             if (!hasCard) continue;
 
             CardManager.CardData card = visibleCards[i];
+            var match=AugmentMatch.Instance;
+            bool privateOpponent=match!=null&&match.LocalSide!=0&&match.LocalSide!=(black?1:2);
+            if(privateOpponent)card=CardManager.HiddenCard();
             CardDetails details = slot.Root.GetComponent<CardDetails>();
             if (details == null) details = slot.Root.AddComponent<CardDetails>();
             int cardId = card.Name;
             string title = string.IsNullOrWhiteSpace(card.DisplayName) ? $"카드 {card.Name}" : card.DisplayName;
-            var match=AugmentMatch.Instance;
             bool hideUsage=AugmentVisibility.IsSecret(cardId)&&match!=null&&!match.IsReviewMode&&match.LocalSide!=0&&match.LocalSide!=(black?1:2);
             bool showUsed=card.Used&&!hideUsage;
             slot.Title.text = showUsed ? $"{title} (사용됨)" : title;
             if (slot.Description != null) { slot.Description.gameObject.SetActive(true); slot.Description.text = card.explanation; }
-            if (slot.Value != null) { slot.Value.gameObject.SetActive(true); slot.Value.text = $"등급 {card.Value:0.#}"; }
+            if (slot.Value != null) { slot.Value.gameObject.SetActive(true); slot.Value.text = privateOpponent?"비공개":$"등급 {card.Value:0.#}"; }
             slot.Title.gameObject.SetActive(true);
-            slot.Title.fontSizeMax = 9f;
-            slot.Title.fontSizeMin = 6f;
-            if (slot.Description != null) { slot.Description.fontSizeMax = 6f; slot.Description.fontSizeMin = 4.5f; }
-            if (slot.Value != null) { slot.Value.fontSizeMax = 8f; slot.Value.fontSizeMin = 6f; }
             slot.Artwork.sprite = card.ItemImage;
             slot.Artwork.enabled = card.ItemImage != null;
             slot.Button.interactable = card.Have && !card.Used && cardManager.CanUseCard(black)
                 && (AugmentMatch.Instance == null || AugmentMatch.Instance.CanControl(black ? 1 : 2));
             var face = slot.Button.targetGraphic as Image;
-            details.Bind(slot.Title, card.explanation, $"등급 {card.Value:0.#}" + (showUsed ? " · 사용됨" : ""),
+            ConfigureCompactText(slot,face);
+            details.Bind(slot.Title, card.explanation, (privateOpponent?"비공개":$"등급 {card.Value:0.#}") + (showUsed ? " · 사용됨" : ""),
                 card.ItemImage, face == null ? null : face.sprite);
             ColorBlock colors = slot.Button.colors;
             colors.fadeDuration = 0f;
@@ -269,6 +312,31 @@ public class CardSideTabUI : MonoBehaviour
             slot.Button.onClick.RemoveAllListeners();
             slot.Button.onClick.AddListener(() => OnCardButtonClicked(black, cardId));
         }
+    }
+    private static void ConfigureCompactText(CardButtonSlot slot,Image face)
+    {
+        if(face==null)return;
+        var frame=face.rectTransform;float width=frame.rect.width,height=frame.rect.height;
+        if(face.preserveAspect&&face.sprite!=null)
+        {
+            float ratio=face.sprite.rect.width/Mathf.Max(1,face.sprite.rect.height);
+            if(width/Mathf.Max(1,height)>ratio)width=height*ratio;else height=width/ratio;
+        }
+        void Place(TMP_Text text,float top,float slotHeight,float slotWidth,float fontSize)
+        {
+            if(text==null)return;
+            var rect=text.rectTransform;
+            rect.SetParent(frame,false);rect.anchorMin=rect.anchorMax=rect.pivot=new Vector2(.5f,.5f);
+            rect.localScale=Vector3.one;rect.localRotation=Quaternion.identity;
+            rect.anchoredPosition=frame.rect.center+new Vector2(0,height*(.5f-top-slotHeight*.5f));
+            rect.sizeDelta=new Vector2(width*slotWidth,height*slotHeight);
+            text.margin=Vector4.zero;text.enableAutoSizing=false;text.fontSize=fontSize;
+            text.textWrappingMode=TextWrappingModes.Normal;text.overflowMode=TextOverflowModes.Ellipsis;
+            text.raycastTarget=false;
+        }
+        Place(slot.Title,.055f,.13f,.84f,8f);
+        Place(slot.Description,.57f,.23f,.78f,5.5f);
+        Place(slot.Value,.845f,.08f,.72f,6.5f);
     }
 
     private void OnCardButtonClicked(bool black, int cardId)
