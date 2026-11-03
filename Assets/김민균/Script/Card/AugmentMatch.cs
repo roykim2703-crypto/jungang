@@ -882,6 +882,8 @@ public sealed class AugmentMatch : MonoBehaviour
         GUILayout.Label(Meteor.active?$"남은 시간 {Meteor.Remaining(Now):0.0}초 · {Meteor.clicks}회 · 범위 {Meteor.Size}×{Meteor.Size}":selected==11?"낙하 위치 클릭 → 3초간 연타 → 자동 낙하 · 우클릭 / Esc 취소":$"세기 {power} · 우클릭 / Esc 취소",guiStyle);
         if(selected==9)
         {
+            var landing=AugmentAim.CatapultLanding(new Vector2Int(9,18),new Vector2Int(dx,dy),power);
+            GUILayout.Label(AugmentBoard.Inside(landing.x,landing.y)?$"예상 착탄 ({landing.x+1},{landing.y+1}) · 영향 범위 3×3":"예상 착탄: 판 밖 · 놓으면 발사 실패",guiStyle);
             float charge=dragging?AugmentAim.CatapultCharge(Time.unscaledTime-catapultChargeStarted):0;
             Rect gauge=GUILayoutUtility.GetRect(430,22);GUI.Box(gauge,GUIContent.none);
             Rect fill=new Rect(gauge.x+3,gauge.y+3,(gauge.width-6)*charge,gauge.height-6);
