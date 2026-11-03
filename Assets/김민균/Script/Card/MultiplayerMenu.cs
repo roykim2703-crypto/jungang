@@ -78,7 +78,7 @@ public sealed class MultiplayerMenu : MonoBehaviour
         var full=(RectTransform)modal.transform;full.anchorMin=Vector2.zero;full.anchorMax=Vector2.one;full.offsetMin=full.offsetMax=Vector2.zero;
         modal.AddComponent<Image>().color=new Color(0,0,0,.65f);
         var panel=Rect("Panel",modal.transform,Vector2.zero,new Vector2(620,650));
-        panel.gameObject.AddComponent<Image>().color=new Color(.98f,.94f,.84f);
+        panel.gameObject.AddComponent<Image>().color=new Color(.98f,.94f,.84f); RoundedUI.Apply(panel.GetComponent<Image>(),24f);
         var outline=panel.gameObject.AddComponent<Outline>();outline.effectColor=new Color(.23f,.17f,.1f);outline.effectDistance=new Vector2(3,-3);
         Label("Title",panel,new Vector2(0,275),new Vector2(540,45),"대국 시작",30);
         status=Label("Status",panel,new Vector2(0,220),new Vector2(540,55),"",19);
@@ -89,7 +89,7 @@ public sealed class MultiplayerMenu : MonoBehaviour
         {error="";try{await room.Connect(true);}catch(Exception e){error=e.Message;}});
         local=Button("Local",panel,new Vector2(135,105),new Vector2(250,48),"같은 기기에서 대국",()=>{visible=false;room.StartLocal();});
         var field=Rect("InviteCodeInput",panel,new Vector2(-60,42),new Vector2(400,48));
-        field.gameObject.AddComponent<Image>().color=Color.white;input=field.gameObject.AddComponent<TMP_InputField>();
+        field.gameObject.AddComponent<Image>().color=Color.white; RoundedUI.Apply(field.GetComponent<Image>(),12f);input=field.gameObject.AddComponent<TMP_InputField>();
         var viewport=Rect("Viewport",field,Vector2.zero,new Vector2(376,44));viewport.gameObject.AddComponent<RectMask2D>();
         var entry=Label("Text",viewport,Vector2.zero,new Vector2(370,44),"",23);entry.alignment=TextAlignmentOptions.MidlineLeft;
         var placeholder=Label("Placeholder",viewport,Vector2.zero,new Vector2(370,44),"친구의 초대코드 입력",20);placeholder.color=new Color(.55f,.5f,.43f);placeholder.alignment=TextAlignmentOptions.MidlineLeft;
@@ -105,10 +105,11 @@ public sealed class MultiplayerMenu : MonoBehaviour
         close=Button("Close",panel,new Vector2(135,-245),new Vector2(250,44),"닫기",()=>visible=false);
         hud=Rect("MatchRoomStatus",canvasObject.transform,Vector2.zero,new Vector2(430,52)).gameObject;
         var hudRect=(RectTransform)hud.transform;hudRect.anchorMin=hudRect.anchorMax=new Vector2(.5f,0);hudRect.pivot=new Vector2(.5f,0);hudRect.anchoredPosition=new Vector2(0,8);
-        hud.AddComponent<Image>().color=new Color(.98f,.94f,.84f,.94f);
+        hud.AddComponent<Image>().color=new Color(.98f,.94f,.84f,.94f); RoundedUI.Apply(hud.GetComponent<Image>(),18f);
         hudStatus=Label("Status",hud.transform,new Vector2(-50,0),new Vector2(310,45),"",15);
         Button("ReturnHome",hud.transform,new Vector2(163,0),new Vector2(90,38),"나가기",async()=>await room.Leave());
         Button("AudioSettings",hud.transform,new Vector2(0,-52),new Vector2(110,38),"소리 설정",AudioSettings.Open);
+        TitleFadeIn.ConfigurePopup(modal, panel);
         modal.SetActive(false);hud.SetActive(false);
     }
     private void ChangeTime(int direction)
@@ -163,7 +164,7 @@ public sealed class MultiplayerMenu : MonoBehaviour
     private Button Button(string name,Transform parent,Vector2 position,Vector2 size,string content,UnityEngine.Events.UnityAction action)
     {
         var rect=Rect(name,parent,position,size);var image=rect.gameObject.AddComponent<Image>();image.color=new Color(.88f,.78f,.6f);
-        var button=rect.gameObject.AddComponent<Button>();button.targetGraphic=image;button.onClick.AddListener(action);
+        RoundedUI.Apply(image); var button=rect.gameObject.AddComponent<Button>();button.targetGraphic=image;button.onClick.AddListener(action);
         var colors=button.colors;colors.highlightedColor=new Color(1,.94f,.8f);colors.pressedColor=new Color(.7f,.6f,.45f);colors.disabledColor=new Color(.7f,.68f,.63f,.6f);button.colors=colors;
         Label("Label",rect,Vector2.zero,size-new Vector2(12,4),content,19);return button;
     }

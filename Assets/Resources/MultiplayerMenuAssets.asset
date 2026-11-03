@@ -12,4 +12,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 21f7706966998f04fa0d0d33c5198c7b, type: 3}
   m_Name: MultiplayerMenuAssets
   m_EditorClassIdentifier: Assembly-CSharp::MultiplayerMenuAssets
-  Font: {fileID: 11400000, guid: 5f4cdcde383ae6e4da180f047b9a0e51, type: 2}
+  Font: {fileID: 11400000, guid: 6ca441b1906b526468aa944bdb56b07e, type: 2}

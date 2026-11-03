@@ -163,8 +163,56 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 460f69e4f53bcc740a419aa3a7e7a81e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MatchResultScreen
+--- !u!1 &2142155345
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2142155347}
+  - component: {fileID: 2142155346}
+  m_Layer: 0
+  m_Name: GameAudio
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2142155346
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2142155345}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9602db1598c9ec7408c1635a6572f7d2, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::GameAudio
+  musicClip: {fileID: 8300000, guid: b62f6cbdb1d497e4fb73ce908bab815c, type: 3}
+  stoneClip: {fileID: 8300000, guid: f5c3bd4ed334bf74b89e97c830591c54, type: 3}
+  cardSelectionClip: {fileID: 8300000, guid: 5877b95f9afb03a42abcd8df6dc336de, type: 3}
+--- !u!4 &2142155347
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2142155345}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 1419154522}
+  - {fileID: 2142155347}

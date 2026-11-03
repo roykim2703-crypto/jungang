@@ -23,7 +23,7 @@ public static class CardSideTabSetup
         var matchController = UnityEngine.Object.FindAnyObjectByType<수_놓기>();
         var guideStone = UnityEngine.Object.FindAnyObjectByType<가이드_돌_코드>();
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefeb/카드_0.prefab");
-        var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Fonts/CardUI SDF.asset");
+        var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Fonts/서울남산 장체L SDF.asset");
         if (manager == null || matchController == null || guideStone == null || rewardProgressBar == null || prefab == null || font == null)
             throw new InvalidOperationException("CardManager, match controller, guide stone, scrollbar, card prefab or font is missing.");
 
