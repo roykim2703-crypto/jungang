@@ -162,6 +162,7 @@ public sealed class HomeTutorial : MonoBehaviour
         Place(whiteFade.rectTransform, Vector2.zero, Vector2.one);
         previous = MakeArrow("Previous", window.transform, 0.055f, false, PreviousPage);
         next = MakeArrow("Next", window.transform, 0.945f, true, NextPage);
+        TitleFadeIn.ConfigurePopup(window, (RectTransform)bounds.transform);
     }
 
     private void SetArtwork(Sprite sprite)
@@ -187,6 +188,7 @@ public sealed class HomeTutorial : MonoBehaviour
         image.rectTransform.anchorMin = image.rectTransform.anchorMax = new Vector2(anchorX, 0.5f);
         image.rectTransform.sizeDelta = new Vector2(90f, 100f);
         image.raycastTarget = true;
+        RoundedUI.Apply(image, 18f);
         var button = image.gameObject.AddComponent<Button>();
         button.targetGraphic = image;
         button.onClick.AddListener(action);

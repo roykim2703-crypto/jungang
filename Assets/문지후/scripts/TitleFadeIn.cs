@@ -31,6 +31,7 @@ public class TitleFadeIn : MonoBehaviour
     [Tooltip("대기 및 등장 중에는 버튼 입력과 레이캐스트를 막습니다.")]
     [SerializeField] private bool blockInputDuringAnimation = true;
 
+    private bool keepRaycastsDuringAnimation;
     private RectTransform rectTransform;
     private CanvasGroup canvasGroup;
     private Vector3 originalPosition;
@@ -40,6 +41,25 @@ public class TitleFadeIn : MonoBehaviour
     private bool initialized;
     private Coroutine animationRoutine;
 
+    /// <summary>Reuse the title entrance for modals; the backdrop fades without moving.</summary>
+    public static void ConfigurePopup(GameObject root, RectTransform panel)
+    {
+        ConfigureEntrance(root, panel != null && panel.gameObject == root ? 36f : 0f);
+        if (panel != null && panel.gameObject != root) ConfigureEntrance(panel.gameObject, 36f);
+    }
+
+    private static void ConfigureEntrance(GameObject target, float distance)
+    {
+        var effect = target.GetComponent<TitleFadeIn>();
+        if (effect == null) effect = target.AddComponent<TitleFadeIn>();
+        effect.startDelay = 0f;
+        effect.duration = 0.4f;
+        effect.moveDistance = distance;
+        effect.useUnscaledTime = true;
+        effect.startAlpha = 0f;
+        effect.keepRaycastsDuringAnimation = true;
+        if (effect.isActiveAndEnabled) effect.Play();
+    }
     private void Awake()
     {
         Initialize();
@@ -88,7 +108,7 @@ public class TitleFadeIn : MonoBehaviour
         if (blockInputDuringAnimation)
         {
             canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
+            canvasGroup.blocksRaycasts = keepRaycastsDuringAnimation;
         }
 
         float elapsed = 0f;

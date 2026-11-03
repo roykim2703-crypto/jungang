@@ -100,6 +100,8 @@ public sealed class HomeMenu : MonoBehaviour
         track.rectTransform.sizeDelta = new Vector2(640f, 24f);
         track.rectTransform.anchoredPosition = new Vector2(0f, -50f);
         var fill = CreateImage("ProgressFill", track.transform, new Color(0.92f, 0.72f, 0.38f));
+        RoundedUI.Apply(track, 12f);
+        RoundedUI.Apply(fill, 12f);
         loadingFill = fill.rectTransform;
         loadingFill.anchorMin = Vector2.zero;
         loadingFill.anchorMax = new Vector2(0f, 1f);
@@ -108,7 +110,7 @@ public sealed class HomeMenu : MonoBehaviour
         var label = new GameObject("LoadingLabel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
         label.transform.SetParent(background.transform, false);
         loadingLabel = label.GetComponent<Text>();
-        loadingLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        loadingLabel.font = TMPro.TMP_Settings.defaultFontAsset.sourceFontFile;
         loadingLabel.fontSize = 32;
         loadingLabel.alignment = TextAnchor.MiddleCenter;
         loadingLabel.color = new Color(1f, 0.92f, 0.77f);

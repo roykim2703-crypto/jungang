@@ -24,7 +24,7 @@ public static class CardAcquisitionSetup
         var placement = UnityEngine.Object.FindAnyObjectByType<수_놓기>();
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefeb/카드_0.prefab");
         if (manager == null || placement == null || prefab == null) throw new InvalidOperationException("Missing manager, placement or card prefab.");
-        var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Fonts/CardUI SDF.asset");
+        var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Fonts/서울남산 장체L SDF.asset");
         if (font == null)
         {
             var source = AssetDatabase.LoadAssetAtPath<Font>("Assets/Fonts/NanumGothic.ttf");
@@ -32,7 +32,7 @@ public static class CardAcquisitionSetup
             font = TMP_FontAsset.CreateFontAsset(source, 48, 5, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 1024, 1024, AtlasPopulationMode.Dynamic);
             font.name = "CardUI SDF";
             font.isMultiAtlasTexturesEnabled = true;
-            AssetDatabase.CreateAsset(font, "Assets/Fonts/CardUI SDF.asset");
+            AssetDatabase.CreateAsset(font, "Assets/Fonts/서울남산 장체L SDF.asset");
             foreach (var texture in font.atlasTextures) AssetDatabase.AddObjectToAsset(texture, font);
             AssetDatabase.AddObjectToAsset(font.material, font);
         }

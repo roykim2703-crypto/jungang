@@ -48,6 +48,7 @@ public sealed class CardDetails : MonoBehaviour, IPointerEnterHandler, IPointerE
         var face = frameRect.gameObject.AddComponent<Image>();
         face.sprite = frame; face.color = frame == null ? new Color(1f, .96f, .86f) : Color.white;
         face.raycastTarget = false;
+        RoundedUI.Apply(face, 22f);
         var shadow = frameRect.gameObject.AddComponent<Shadow>();
         shadow.effectColor = new Color(0, 0, 0, .4f); shadow.effectDistance = new Vector2(5, -5);
         TMP_Text heading = MakeText("Title", title, 24, TextAlignmentOptions.Center);
@@ -65,11 +66,13 @@ public sealed class CardDetails : MonoBehaviour, IPointerEnterHandler, IPointerE
         window.SetSiblingIndex(frame == null ? 1 : 0);
         var paper = window.gameObject.AddComponent<Image>();
         paper.color = new Color(1f, .98f, .93f); paper.raycastTarget = false;
+        RoundedUI.Apply(paper, 14f);
         window.gameObject.AddComponent<RectMask2D>();
         var imageRect = MakeRect("Artwork", window);
         imageRect.anchorMin = imageRect.anchorMax = imageRect.pivot = new Vector2(.5f, .5f);
         imageRect.anchoredPosition = Vector2.zero;
         Image picture = imageRect.gameObject.AddComponent<Image>();
+        RoundedUI.Apply(picture, 14f);
         picture.sprite = artwork; picture.raycastTarget = false; picture.enabled = artwork != null;
         if (artwork != null)
         {

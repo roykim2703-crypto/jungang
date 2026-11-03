@@ -37,6 +37,8 @@ public class CardAcquisitionUI : MonoBehaviour
     public void Show(CardManager manager, CardManager.CardData[] black, CardManager.CardData[] white,
         CardManager.AcquisitionPhase phase, int stoneCount)
     {
+        if (!gameObject.activeSelf)
+            TitleFadeIn.ConfigurePopup(gameObject, transform.Find("RewardPanel") as RectTransform);
         gameObject.SetActive(true);
         string timing = stoneCount == 0 ? "게임 시작" : $"{stoneCount}수";
         if(manager.SimultaneousSelection)
@@ -96,7 +98,10 @@ public class CardAcquisitionUI : MonoBehaviour
                 card.ItemImage, face == null ? null : face.sprite);
             slot.Button.interactable = AugmentMatch.Instance == null || AugmentMatch.Instance.CanControl(black ? 1 : 2);
             slot.Button.onClick.RemoveAllListeners();
-            slot.Button.onClick.AddListener(() => manager.SelectCard(black, index));
+            slot.Button.onClick.AddListener(() =>
+            {
+                if (manager.SelectCard(black, index)) GameAudio.Instance.PlayCardSelection();
+            });
         }
     }
 

@@ -10,8 +10,8 @@ public sealed class AudioSettings : MonoBehaviour
     private Button close;
     private Slider musicSlider, stoneSlider;
     private TMP_Text musicValue, stoneValue;
-    private Texture2D roundedTexture;
-    private Sprite roundedSprite;
+
+
     private static AudioSettings instance;
     public static bool IsOpen => instance != null && instance.window != null && instance.window.activeSelf;
 
@@ -43,8 +43,8 @@ public sealed class AudioSettings : MonoBehaviour
     private void OnDestroy()
     {
         if (instance == this) instance = null;
-        if (roundedSprite != null) Destroy(roundedSprite);
-        if (roundedTexture != null) Destroy(roundedTexture);
+
+
     }
     private void RefreshValues()
     {
@@ -67,14 +67,15 @@ public sealed class AudioSettings : MonoBehaviour
         dim.rectTransform.offsetMin = dim.rectTransform.offsetMax = Vector2.zero;
         var outside = dim.gameObject.AddComponent<Button>(); outside.transition = Selectable.Transition.None; outside.onClick.AddListener(Close);
         var panel = Image("Panel", window.transform, Vector2.zero, new Vector2(680, 440), new Color(0.16f, 0.1f, 0.06f));
-        RoundCorners(panel);
+        RoundedUI.Apply(panel, 24f);
         Label("Title", panel.transform, new Vector2(0, 160), new Vector2(560, 60), "소리 설정", 34);
         musicSlider = Row(panel.transform, "Music", "배경음악", 65, out musicValue);
-        stoneSlider = Row(panel.transform, "Stone", "돌 놓기 효과음", -35, out stoneValue);
+        stoneSlider = Row(panel.transform, "Stone", "효과음 (돌 · 카드)", -35, out stoneValue);
         musicSlider.onValueChanged.AddListener(value => { GameAudio.Instance.SetMusicVolume(value); RefreshValues(); });
         stoneSlider.onValueChanged.AddListener(value => { GameAudio.Instance.SetStoneVolume(value); RefreshValues(); });
         Button("Preview", panel.transform, new Vector2(-145, -150), "효과음 듣기", () => GameAudio.Instance.PlayStone());
         close = Button("Close", panel.transform, new Vector2(145, -150), "닫기", Close);
+        TitleFadeIn.ConfigurePopup(window, panel.rectTransform);
         window.SetActive(false);
     }
     private Slider Row(Transform parent, string name, string label, float y, out TMP_Text value)
@@ -86,6 +87,9 @@ public sealed class AudioSettings : MonoBehaviour
         fill.rectTransform.anchorMin = Vector2.zero; fill.rectTransform.anchorMax = Vector2.one;
         fill.rectTransform.offsetMin = fill.rectTransform.offsetMax = Vector2.zero;
         var handle = Image("Handle", track.transform, Vector2.zero, new Vector2(24, 36), new Color(1f, 0.91f, 0.68f));
+        RoundedUI.Apply(track, 9f);
+        RoundedUI.Apply(fill, 9f);
+        RoundedUI.Apply(handle, 12f);
         var slider = track.gameObject.AddComponent<Slider>();
         slider.minValue = 0; slider.maxValue = 1;
         slider.fillRect = fill.rectTransform; slider.handleRect = handle.rectTransform; slider.targetGraphic = handle;
@@ -109,39 +113,11 @@ public sealed class AudioSettings : MonoBehaviour
     private Button Button(string name, Transform parent, Vector2 position, string label, UnityEngine.Events.UnityAction action)
     {
         var image = Image(name, parent, position, new Vector2(240, 52), new Color(0.38f, 0.26f, 0.13f));
-        RoundCorners(image);
+        RoundedUI.Apply(image);
         image.pixelsPerUnitMultiplier = 1.5f;
         var button = image.gameObject.AddComponent<Button>(); button.targetGraphic = image; button.onClick.AddListener(action);
         Label("Label", image.transform, Vector2.zero, new Vector2(230, 48), label, 23);
         return button;
     }
 
-    private void RoundCorners(Image image)
-    {
-        if (roundedSprite == null)
-        {
-            const int size = 64;
-            const float radius = 20f;
-            roundedTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            roundedTexture.name = "Settings rounded corners";
-            roundedTexture.wrapMode = TextureWrapMode.Clamp;
-            roundedTexture.filterMode = FilterMode.Bilinear;
-            var pixels = new Color[size * size];
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float dx = Mathf.Max(radius - (x + 0.5f), x + 0.5f - (size - radius), 0f);
-                    float dy = Mathf.Max(radius - (y + 0.5f), y + 0.5f - (size - radius), 0f);
-                    float alpha = Mathf.Clamp01(radius + 0.5f - Mathf.Sqrt(dx * dx + dy * dy));
-                    pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
-                }
-            roundedTexture.SetPixels(pixels);
-            roundedTexture.Apply(false, true);
-            roundedSprite = Sprite.Create(roundedTexture, new Rect(0, 0, size, size),
-                new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect,
-                new Vector4(radius, radius, radius, radius));
-        }
-        image.sprite = roundedSprite;
-        image.type = UnityEngine.UI.Image.Type.Sliced;
-    }
 }
