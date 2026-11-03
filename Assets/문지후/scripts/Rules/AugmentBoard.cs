@@ -10,6 +10,8 @@ public sealed class AugmentBoard
     // Owner is stored only at the top-left anchor. The four cells remain occupied for rules,
     // while rendering treats them as one 2x2-sized stone.
     public int[] largeStone = new int[361];
+    public int[] anchored = new int[361];
+    public bool IsAnchored(int x,int y)=>Inside(x,y)&&anchored!=null&&anchored.Length==361&&anchored[y*19+x]!=0;
     public int turn = 1, winner, moves, sequence;
     public int grayNext, convertNext, takeover, capture, replay, noSix;
     public int[] giant = { -1, -1, -1 }, giantTurns = new int[3];
@@ -44,7 +46,7 @@ public sealed class AugmentBoard
         if(!Inside(x,y))return 5;
         int p=y*19+x;return hidden[p]!=0&&hidden[p]!=viewer?0:cells[p];
     }
-    private bool Mutable(int p) => p >= 0 && p < 361 && cells[p] != 3 && cells[p] != 5;
+    private bool Mutable(int p) => p >= 0 && p < 361 && cells[p] != 3 && cells[p] != 5&&!IsAnchored(p%19,p/19);
     private void Set(int p, int color)
     {
         if (!Mutable(p)) return;
@@ -372,20 +374,35 @@ public sealed class AugmentBoard
                 if(!FlickStone(p,rawDx,rawDy,power))return false;
                 break;
             case 9:
-                if(dx==0&&dy==0)return false;
-                int catapultDistance=AugmentAim.CatapultDistance(power);
-                int tx=x+dx*catapultDistance,ty=y+dy*catapultDistance;
+                if(rawDx==0&&rawDy==0)return false;
+                var landing=AugmentAim.CatapultLanding(new Vector2Int(x,y),new Vector2Int(rawDx,rawDy),power);
+                int tx=landing.x,ty=landing.y;
                 if(!Inside(tx,ty))return false;
                 int dest=ty*19+tx;
-                if(!Mutable(dest))return false;
-                if(cells[dest]!=0) {int nx=tx+dx,ny=ty+dy;if(Inside(nx,ny)&&At(nx,ny)==0)Move(dest,ny*19+nx);else Set(dest,0);}
-                Set(dest,own);
+                if(cells[dest]==3||IsAnchored(tx,ty))return false;
+                if(cells[dest]==5)cells[dest]=0;
+                Set(dest,0);
+                var pushed=new HashSet<int>();var nearby=new List<int>();
+                for(int oy=-1;oy<=1;oy++)for(int ox=-1;ox<=1;ox++)
+                {
+                    if(ox==0&&oy==0||!Inside(tx+ox,ty+oy))continue;
+                    int q=(ty+oy)*19+tx+ox;
+                    if(cells[q]!=0&&Mutable(q)&&pushed.Add(StoneAnchor(q)))nearby.Add(StoneAnchor(q));
+                }
+                nearby.Sort((a,b)=>((b%19-tx)*(b%19-tx)+(b/19-ty)*(b/19-ty)).CompareTo((a%19-tx)*(a%19-tx)+(a/19-ty)*(a/19-ty)));
+                foreach(int q in nearby)
+                {
+                    float half=largeStone[q]!=0?.5f:0;
+                    var outward=new Vector2Int(Math.Sign(q%19+half-tx),Math.Sign(q/19+half-ty));
+                    PushOne(q,outward,1);
+                }
+                Set(dest,own);anchored[dest]=own;
                 break;
             case 4: capture=own; Capture(own); break;
             case 5:
                 if(Premoves(own).Length>0&&premoveIndex[own]<6)return false;
                 var recent=new List<int>();
-                for(int i=0;i<361;i++)if(cells[i]==own&&StoneAnchor(i)==i)recent.Add(i);
+                for(int i=0;i<361;i++)if(cells[i]==own&&StoneAnchor(i)==i&&Mutable(i))recent.Add(i);
                 if(recent.Count<2)return false;
                 recent.Sort((a,b)=>order[b].CompareTo(order[a]));
                 for(int i=0;i<2;i++)Set(recent[i],0);

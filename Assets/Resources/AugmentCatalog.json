@@ -1,4 +1,4 @@
-﻿{
+{
     "cards":  [
                   {
                       "Value":  2.5,
@@ -6,18 +6,18 @@
                       "explanation":  "다른 증강 중 현재 위치에 발동 가능한 능력 하나를 무작위로 사용한다.",
                       "AvailableFrom":  0,
                       "DisplayName":  "개꿀잼 상자",
-                      "AvailableUntil":  0
+                      "AvailableUntil":  2
                   },
                   {
                       "Value":  3.5,
                       "Name":  1,
                       "explanation":  "첫 타격부터 3초 동안 클릭할 때마다 주먹을 내려친다. 매 타격은 선택한 칸 주변 3×3 영역의 돌을 색에 관계없이 파괴하며 같은 곳도 반복 타격할 수 있다. 영구 장애물은 보존된다.",
-                      "AvailableFrom":  0,
+                      "AvailableFrom":  1,
                       "DisplayName":  "샷건",
                       "AvailableUntil":  2
                   },
                   {
-                      "Value":  2,
+                      "Value":  2.5,
                       "Name":  2,
                       "explanation":  "좌우로 흔들리는 박스를 떨어뜨린다. 떨어진 칸의 돌을 내 돌로 바꾼다. 영구 돌과 블랙홀에는 적용되지 않는다.",
                       "AvailableFrom":  0,
@@ -25,20 +25,20 @@
                       "AvailableUntil":  2
                   },
                   {
-                      "Value":  3,
+                      "Value":  4.5,
                       "Name":  3,
                       "explanation":  "내 돌 하나를 뒤로 당겼다가 놓아 반대 방향으로 날린다. 당긴 거리가 힘이 되며, 충돌한 돌을 힘에 따라 여러 칸 밀거나 뚫고 계속 진행할 수 있다.",
-                      "AvailableFrom":  0,
+                      "AvailableFrom":  2,
                       "DisplayName":  "알까기",
                       "AvailableUntil":  2
                   },
                   {
-                      "Value":  2.5,
+                      "Value":  1,
                       "Name":  4,
                       "explanation":  "이번 턴 동안 상하좌우의 빈 활로가 없는 상대 돌 무리를 잡는다. 발동 즉시와 이번 착수 전후에 판정한다.",
-                      "AvailableFrom":  1,
+                      "AvailableFrom":  0,
                       "DisplayName":  "바둑 아니였음?",
-                      "AvailableUntil":  2
+                      "AvailableUntil":  0
                   },
                   {
                       "Value":  5,
@@ -49,7 +49,7 @@
                       "AvailableUntil":  2
                   },
                   {
-                      "Value":  2,
+                      "Value":  2.5,
                       "Name":  6,
                       "explanation":  "선택한 칸을 좌상단으로 하는 빈 2×2 영역에 큰 돌 하나를 만든다. 차지한 4칸 모두 내 돌로 취급하여 점유·연결·승리 판정에 포함한다.",
                       "AvailableFrom":  0,
@@ -65,39 +65,39 @@
                       "AvailableUntil":  2
                   },
                   {
-                      "Value":  3.5,
+                      "Value":  3,
                       "Name":  9,
-                      "explanation":  "판 아래 투석기를 마우스로 조준하고 길게 눌러 5단계로 힘을 모은 뒤 놓아 발사한다. 세기별 사거리는 4·8·12·16·22칸이며, 판 밖 착탄은 실패한다. 착탄 칸의 돌은 밀거나 파괴한다.",
-                      "AvailableFrom":  0,
+                      "explanation":  "마우스로 조준하고 누르면 힘이 빠르게 왕복하며 착탄점과 3×3 범위를 표시한다. 놓으면 표시된 곳에 발사한다. 착탄 칸의 돌을 제거하고 주변 돌을 바깥으로 한 칸 민 뒤, 어떤 효과로도 제거·이동·변색되지 않는 내 돌을 고정한다. 막힌 돌과 영구 고정 돌은 밀리지 않으며 판 밖 착탄은 실패한다.",
+                      "AvailableFrom":  1,
                       "DisplayName":  "투석",
-                      "AvailableUntil":  1
+                      "AvailableUntil":  2
                   },
                   {
-                      "Value":  4,
+                      "Value":  1.5,
                       "Name":  10,
                       "explanation":  "빈칸에 무소유 고정 돌을 설치한다. 모든 증강으로도 삭제하거나 이동하거나 색을 바꿀 수 없다.",
                       "AvailableFrom":  0,
                       "DisplayName":  "Stone",
-                      "AvailableUntil":  1
+                      "AvailableUntil":  0
                   },
                   {
-                      "Value":  5,
+                      "Value":  2,
                       "Name":  11,
                       "explanation":  "선택한 위치에 운석을 떨어뜨린다. 3초 동안의 클릭 수에 따라 0~12회는 3×3, 13~20회는 5×5, 21~32회는 7×7, 33회 이상은 9×9를 파괴한다. 충전이 끝나면 자동으로 낙하하고 중심에 내 돌을 생성한다. 영구 장애물은 보존된다.",
-                      "AvailableFrom":  1,
+                      "AvailableFrom":  0,
                       "DisplayName":  "운\u0027석\u0027",
                       "AvailableUntil":  2
                   },
                   {
-                      "Value":  5,
+                      "Value":  4.5,
                       "Name":  12,
                       "explanation":  "상대 몰래 다음 일반 착수로 두는 돌을 내 색으로 바꾼다. 발동 이펙트와 상대에게 보이는 사용 알림은 없다.",
-                      "AvailableFrom":  1,
+                      "AvailableFrom":  2,
                       "DisplayName":  "언제부터 \"흑돌\"을 두었다고 생각한거지?",
-                      "AvailableUntil":  1
+                      "AvailableUntil":  2
                   },
                   {
-                      "Value":  3,
+                      "Value":  3.5,
                       "Name":  13,
                       "explanation":  "선택한 칸을 지나는 직선의 돌을 놓인 순서대로 선택 방향 끝부터 모은다. 영구 장애물을 넘어 정렬하지 않는다.",
                       "AvailableFrom":  1,
@@ -105,7 +105,7 @@
                       "AvailableUntil":  2
                   },
                   {
-                      "Value":  4,
+                      "Value":  5,
                       "Name":  14,
                       "explanation":  "내 돌을 없애고 선택한 칸에 거신병을 소환한다. 소환 연출 후 완성 본체가 칸에 남는다. 소환 턴 이후 내 턴을 세 번 완료할 때까지 생존하면 승리한다.",
                       "AvailableFrom":  2,
@@ -113,15 +113,15 @@
                       "AvailableUntil":  2
                   },
                   {
-                      "Value":  2,
+                      "Value":  3.5,
                       "Name":  15,
                       "explanation":  "선택한 칸 중심의 3×3 영역을 지우고 회전하는 블랙홀로 만든다. 내부에도 착수할 수 있다. 그 착수로 6목을 완성하면 승리하며, 승리하지 못한 돌은 소멸한다. 영구 고정 돌은 보존된다.",
-                      "AvailableFrom":  0,
+                      "AvailableFrom":  1,
                       "DisplayName":  "블랙홀",
-                      "AvailableUntil":  1
+                      "AvailableUntil":  2
                   },
                   {
-                      "Value":  2,
+                      "Value":  3,
                       "Name":  16,
                       "explanation":  "본인에게만 반투명하게 보이는 돌을 만든다. 상대에게는 돌·금지 표시·설치 기보가 보이지 않는다. 상대가 그 칸에 착수하면 기존 돌이 드러나고 새 돌 없이 상대 턴이 끝난다.",
                       "AvailableFrom":  1,
@@ -129,34 +129,34 @@
                       "AvailableUntil":  2
                   },
                   {
-                      "Value":  2,
+                      "Value":  4.5,
                       "Name":  17,
                       "explanation":  "고정되지 않은 돌 하나를 선택한 방향의 인접 빈칸으로 한 칸 이동한다. 상대 돌도 이동할 수 있다.",
-                      "AvailableFrom":  0,
+                      "AvailableFrom":  2,
                       "DisplayName":  "슬쩍",
-                      "AvailableUntil":  1
+                      "AvailableUntil":  2
                   },
                   {
                       "Value":  1.5,
                       "Name":  18,
                       "explanation":  "발동 연출 없이 상대의 다음 일반 착수 위치를 내가 정한다. 돌은 상대 색으로 놓이며, 상대는 자기 턴에 증강을 사용할 수 있다.",
-                      "AvailableFrom":  1,
+                      "AvailableFrom":  0,
                       "DisplayName":  "내놔",
-                      "AvailableUntil":  1
+                      "AvailableUntil":  0
                   },
                   {
-                      "Value":  1,
+                      "Value":  4,
                       "Name":  19,
                       "explanation":  "선택한 칸 중심의 3×3을 흑·백 각각 50% 확률로 채운다. 기존 돌도 색이 바뀌며 영구 장애물은 보존된다.",
-                      "AvailableFrom":  0,
+                      "AvailableFrom":  2,
                       "DisplayName":  "랜덤 채우기",
-                      "AvailableUntil":  1
+                      "AvailableUntil":  2
                   },
                   {
-                      "Value":  3,
+                      "Value":  4.5,
                       "Name":  20,
                         "explanation":  "앞면(50%)은 모든 흑돌과 백돌의 색을 서로 바꾼다. 뒷면(50%)은 내 돌을 최대 세 개 무작위로 파괴한다. 양쪽 화면에 앞·뒷면 결과와 제거된 칸을 표시한다.",
-                      "AvailableFrom":  1,
+                      "AvailableFrom":  2,
                       "DisplayName":  "판 뒤집기",
                       "AvailableUntil":  2
                   }
