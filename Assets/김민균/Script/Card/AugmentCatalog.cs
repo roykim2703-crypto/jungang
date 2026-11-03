@@ -12,6 +12,9 @@ public static class AugmentCatalog
         var artwork = Resources.Load<AugmentArtworkCatalog>("AugmentArtworkCatalog");
         foreach (var card in catalog.cards)
         {
+            card.Value=Mathf.Round(Mathf.Clamp(card.Value,1f,5f)*2f)/2f;
+            card.AvailableFrom=card.Value<3f?CardManager.AcquisitionPhase.Early:card.Value<4f?CardManager.AcquisitionPhase.Middle:CardManager.AcquisitionPhase.Late;
+            card.AvailableUntil=card.Value<2f?CardManager.AcquisitionPhase.Early:CardManager.AcquisitionPhase.Late;
             int usage = card.explanation == null ? -1 : card.explanation.IndexOf("사용법:", StringComparison.Ordinal);
             if (usage >= 0) card.explanation = card.explanation.Substring(0, usage).TrimEnd();
             card.ItemImage = artwork == null ? null : artwork.Find(card.DisplayName);

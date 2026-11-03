@@ -4,6 +4,56 @@ using UnityEngine;
 public class AugmentBoardTests
 {
     private static int First(int min,int max)=>min;
+    [Test]
+    public void CatapultClearsTheCenterAndPushesAllEightNeighborsOutwardOnce()
+    {
+        var b=new AugmentBoard();b.cells[180]=2;
+        for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)
+        {
+            if(dx==0&&dy==0)continue;int p=(9+dy)*19+9+dx;
+            b.cells[p]=dx==0?4:dx<0?1:2;b.order[p]=p;
+        }
+        b.hidden[9*19+10]=2;b.piece=9*19+10;b.pieceOwner=2;b.pieceKind=1;
+        Assert.IsTrue(b.Ability(9,9,13,0,-1000,1,First));
+        Assert.IsTrue(b.IsAnchored(9,9));Assert.AreEqual(1,b.At(9,9));
+        for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)
+        {
+            if(dx==0&&dy==0)continue;
+            Assert.AreEqual(0,b.At(9+dx,9+dy));
+            Assert.AreEqual(dx==0?4:dx<0?1:2,b.At(9+dx*2,9+dy*2));
+        }
+        Assert.AreEqual(2,b.hidden[9*19+11]);Assert.AreEqual(9*19+11,b.piece);
+    }
+    [TestCase(1)][TestCase(2)][TestCase(3)][TestCase(4)][TestCase(5)][TestCase(6)]
+    [TestCase(9)][TestCase(10)][TestCase(11)][TestCase(13)][TestCase(14)][TestCase(15)]
+    [TestCase(16)][TestCase(17)][TestCase(19)][TestCase(20)]
+    public void AbsoluteCatapultStoneCannotBeRemovedMovedOrRecolored(int ability)
+    {
+        var b=new AugmentBoard();Assert.IsTrue(b.Ability(9,9,13,0,-1,1,First));
+        b.cells[0]=b.cells[2]=1;b.order[0]=1;b.order[2]=2;
+        b.Ability(ability,9,9,1,0,3,First);
+        Assert.AreEqual(1,b.At(9,9));Assert.IsTrue(b.IsAnchored(9,9));
+        var copy=JsonUtility.FromJson<AugmentBoard>(JsonUtility.ToJson(b));Assert.IsTrue(copy.IsAnchored(9,9));
+    }
+    [Test]
+    public void CatapultPreservesProtectedCellsAndMovesLargeStonesAsOneObject()
+    {
+        var b=new AugmentBoard();b.cells[9*19+8]=2;b.cells[9*19+7]=3;
+        Assert.IsTrue(b.Ability(6,10,9,1,0,1,First));
+        Assert.IsTrue(b.Ability(9,9,13,0,-1,1,First));
+        Assert.AreEqual(2,b.At(8,9));Assert.AreEqual(3,b.At(7,9));
+        Assert.AreEqual(1,b.largeStone[10*19+11]);Assert.AreEqual(0,b.largeStone[9*19+10]);
+        Assert.IsFalse(b.Ability(9,9,13,0,-1,1,First));
+        var hole=new AugmentBoard();hole.cells[180]=5;Assert.IsTrue(hole.Ability(9,9,13,0,-1,1,First));Assert.IsTrue(hole.IsAnchored(9,9));
+    }
+    [Test]
+    public void AbsoluteCatapultStoneStillCountsForItsOwnersSix()
+    {
+        var b=new AugmentBoard();for(int x=4;x<9;x++)b.cells[9*19+x]=1;
+        Assert.IsTrue(b.Ability(9,9,13,0,-1,1,First));
+        // The adjacent fifth stone is pushed away; complete a different axis through the anchor.
+        for(int y=4;y<9;y++)b.cells[y*19+9]=1;b.CheckWinner();Assert.AreEqual(1,b.winner);
+    }
     [TestCase(1)][TestCase(2)]
     public void BlackHoleAcceptsPlacementConsumesTurnAndRemainsAvailable(int side)
     {

@@ -40,6 +40,18 @@ public class AugmentAimTests
         Assert.IsFalse(board.Ability(9,9,18,0,-1,AugmentAim.CatapultMaxPower,(a,b)=>a));
         Assert.AreEqual(0,System.Array.FindAll(board.cells,c=>c!=0).Length);
     }
+    [Test]
+    public void CatapultPowerOscillatesAndPreviewMatchesThePreciseLanding()
+    {
+        Assert.AreEqual(1,AugmentAim.CatapultPower(0));Assert.AreEqual(5,AugmentAim.CatapultPower(.4f));
+        Assert.AreEqual(1,AugmentAim.CatapultPower(.8f));Assert.AreEqual(5,AugmentAim.CatapultPower(1.2f));
+        var origin=new Vector2Int(9,18);
+        Assert.IsTrue(AugmentAim.CatapultDirection(origin,new Vector2(12,4),out var direction));
+        var landing=AugmentAim.CatapultLanding(origin,direction,3);
+        var area=AugmentAim.Cells(9,origin,direction,3);Assert.AreEqual(9,area.Count);Assert.Contains(landing,area);
+        var board=new AugmentBoard();Assert.IsTrue(board.Ability(9,origin.x,origin.y,direction.x,direction.y,3,(a,b)=>a));
+        Assert.AreEqual(1,board.At(landing.x,landing.y));Assert.IsTrue(board.IsAnchored(landing.x,landing.y));
+    }
     [TestCase(1,9)][TestCase(15,9)][TestCase(19,9)][TestCase(6,4)]
     public void RangeMatchesEffectFootprint(int id,int expectedCells)
     {

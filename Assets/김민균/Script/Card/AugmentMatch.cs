@@ -252,7 +252,9 @@ public sealed class AugmentMatch : MonoBehaviour
         if(command.kind=="piece"&&Board.piece>=0)Cue(Board.piece,Board.pieceOwner);
         // Public stone-producing cards also get a landing cue; hidden placements stay private.
         if(usedAbility==6)Cue(command.y*19+command.x,command.side,2);
-        else if(usedAbility==2||usedAbility==9||usedAbility==10||usedAbility==11||usedAbility==14||usedAbility==19)
+        else if(usedAbility==9)
+        {var landing=AugmentAim.CatapultLanding(new Vector2Int(command.x,command.y),new Vector2Int(command.dx,command.dy),command.power);Cue(landing.y*19+landing.x,command.side);}
+        else if(usedAbility==2||usedAbility==10||usedAbility==11||usedAbility==14||usedAbility==19)
             for(int p=0;p<361;p++)
                 if(Board.cells[p]!=0&&Board.cells[p]!=5&&Board.cells[p]!=before[p]&&Board.hidden[p]==0)Cue(p,Board.cells[p]);
         if(placements.Count>0){lastPlacements=placements.ToArray();placementRevision=Revision;}
@@ -280,7 +282,7 @@ public sealed class AugmentMatch : MonoBehaviour
             for(int p=0;p<361;p++)
             {
                 // A destroyed hidden stone must not leak its former location in a public result.
-                if(beforeHidden[p]!=0)continue;
+                if(beforeHidden[p]!=0||Board.hidden[p]!=0)continue;
                 if(before[p]!=Board.cells[p])
                 {
                     changed++;changedCells.Add(p);beforeColors.Add(before[p]);afterColors.Add(Board.cells[p]);
@@ -289,9 +291,9 @@ public sealed class AugmentMatch : MonoBehaviour
             }
             // Vacated origins of movement/sorting are not destroyed stones.
             bool moved=usedAbility==3||usedAbility==13||usedAbility==17;
-            if(moved)removed.Clear();
+            if(moved||usedAbility==9)removed.Clear();
             string title=Cards.CardList.Find(c=>c.Name==usedAbility)?.DisplayName??"증강";
-            string detail=usedAbility==20?(Board.lastFlipResult==1?"앞면 · 흑돌 ↔ 백돌 색 교환":$"뒷면 · 내 돌 제거 {removed.Count}칸"):moved?$"이동 완료 · 변경 {changed}칸":$"효과 적용 · 변경 {changed}칸 / 제거 {removed.Count}칸";
+            string detail=usedAbility==20?(Board.lastFlipResult==1?"앞면 · 흑돌 ↔ 백돌 색 교환":$"뒷면 · 내 돌 제거 {removed.Count}칸"):usedAbility==9?"절대 고정 돌 착탄 · 주변 3×3의 돌을 바깥으로 한 칸 밀어냅니다":moved?$"이동 완료 · 변경 {changed}칸":$"효과 적용 · 변경 {changed}칸 / 제거 {removed.Count}칸";
             if(removed.Count>0)
             {
                 var coordinates=removed.GetRange(0,Math.Min(3,removed.Count)).ConvertAll(p=>$"({p%19+1},{p/19+1})");
@@ -547,13 +549,12 @@ public sealed class AugmentMatch : MonoBehaviour
         }
         if(selected==9)
         {
-            Vector2 launcherGrid=new Vector2(9,20);
+            Vector2 launcherGrid=new Vector2(9,18);
             if(pressed&&!overUI){dragOrigin=new Vector2Int(9,18);dragging=true;catapultChargeStarted=Time.unscaledTime;}
-            if(!dragging)return;
-            bool aimed=AugmentAim.Drag(launcherGrid,Grid(world),false,out Vector2Int direction,out _);
+            bool aimed=AugmentAim.CatapultDirection(launcherGrid,Grid(world),out Vector2Int direction);
             if(aimed){dx=direction.x;dy=direction.y;}
-            power=Mathf.Clamp(1+Mathf.FloorToInt((Time.unscaledTime-catapultChargeStarted)/.4f),1,AugmentAim.CatapultMaxPower);
-            if(!released)return;
+            power=dragging?AugmentAim.CatapultPower(Time.unscaledTime-catapultChargeStarted):1;
+            if(!dragging||!released)return;
             dragging=false;
             if(overUI||!aimed||dy>=0){Status="투석기는 판 안쪽(위쪽)을 향해야 합니다.";return;}
             Submit(new Command{kind="ability",side=side,id=9,x=9,y=18,dx=dx,dy=dy,power=power});return;
@@ -619,8 +620,14 @@ public sealed class AugmentMatch : MonoBehaviour
                     Vector3 aim=world-catapultPreview.transform.position;
                     if(aim.sqrMagnitude>.01f)catapultPreview.transform.rotation=Quaternion.Euler(0,0,Mathf.Atan2(aim.y,aim.x)*Mathf.Rad2Deg+90f);
                 }
-                // 투석은 힘과 방향만 보여 주고 정확한 착지 칸은 숨긴다.
-                targetView?.Hide();return;
+                var catapultDirection=new Vector2Int(dx,dy);var origin=new Vector2Int(9,18);
+                var landing=AugmentAim.CatapultLanding(origin,catapultDirection,power);
+                bool catapultValid=dy<0&&ValidTarget(origin,catapultDirection);
+                var catapultColor=catapultValid?new Color(.25f,1,.55f):new Color(1,.12f,.12f);
+                var end=new Vector3(guide.centerPos.x+(landing.x-9)*guide.gap,guide.centerPos.y-(landing.y-9)*guide.gap,-.2f);
+                targetView.Show(AugmentAim.Cells(9,origin,catapultDirection,power),guide.centerPos,guide.gap,catapultColor,origin,catapultDirection,power,null,end);
+                if(AugmentBoard.Inside(landing.x,landing.y))ShowPlacementMarker(landing,catapultValid);
+                return;
             }
             var direction=new Vector2Int(dx,dy);
             var cells=AugmentAim.Cells(Meteor.active?11:selected,cell,direction,Meteor.active?MeteorCharge.Power(Meteor.clicks):selected==11?2:power);
@@ -645,6 +652,11 @@ public sealed class AugmentMatch : MonoBehaviour
     }
     private bool ValidTarget(Vector2Int cell,Vector2Int direction)
     {
+        if(selected==9)
+        {
+            var landing=AugmentAim.CatapultLanding(cell,direction,power);
+            return direction!=Vector2Int.zero&&AugmentBoard.Inside(landing.x,landing.y)&&Board.VisibleAt(landing.x,landing.y,ViewingSide)!=3&&!Board.IsAnchored(landing.x,landing.y);
+        }
         int value=Board.VisibleAt(cell.x,cell.y,ViewingSide);
         if(selected==6)
         {for(int y=0;y<2;y++)for(int x=0;x<2;x++)if(!AugmentBoard.Inside(cell.x+x,cell.y+y)||Board.VisibleAt(cell.x+x,cell.y+y,ViewingSide)!=0)return false;return true;}
@@ -652,7 +664,7 @@ public sealed class AugmentMatch : MonoBehaviour
         if(selected==2||selected==11||selected==14)return value!=3&&value!=5;
         if(selected==3||selected==9||selected==17)
         {
-            if(selected==3&&value!=Board.turn)return false;
+            if(selected==3&&(value!=Board.turn||Board.IsAnchored(cell.x,cell.y)))return false;
             if(selected==17&&(value==0||value==3||value==5))return false;
             if(!dragging)return true;
             if(direction==Vector2Int.zero)return false;
@@ -699,6 +711,7 @@ public sealed class AugmentMatch : MonoBehaviour
             }
             var go=Instantiate(guide.돌,new Vector3(guide.centerPos.x+(p%19-9)*guide.gap,guide.centerPos.y-(p/19-9)*guide.gap,0),Quaternion.identity);
             var sr=go.GetComponent<SpriteRenderer>();sr.sprite=c==2||c==4?guide.흰돌이미지:guide.검은돌이미지;
+            if(Board.IsAnchored(p%19,p/19))sr.sortingOrder=100;
             // A winning landing inside the vortex stays visible above the remaining black-hole art.
             if(Board.winner!=0&&Array.Exists(lastPlacements,cue=>cue!=null&&cue.cell==p))sr.sortingOrder=100;
             sr.color=c==3?new Color(.6f,.4f,.15f):c==4?Color.gray:c==5?new Color(.25f,.1f,.35f):Color.white;
@@ -718,6 +731,11 @@ public sealed class AugmentMatch : MonoBehaviour
             visuals.Add(go);
         }
         RenderBlackHoles();
+        for(int p=0;p<361;p++)if(Board.IsAnchored(p%19,p/19))
+        {
+            var pos=new Vector3(guide.centerPos.x+(p%19-9)*guide.gap,guide.centerPos.y-(p/19-9)*guide.gap,-.12f);
+            visuals.Add(AugmentEffectView.CreateAnchoredMarker(transform,pos,guide.gap));
+        }
         RenderPremoves();
         RenderLastPlacements();
         var ui=FindAnyObjectByType<CardSideTabUI>();if(ui!=null)ui.RefreshAll();
@@ -859,12 +877,12 @@ public sealed class AugmentMatch : MonoBehaviour
             GUILayout.Label($"남은 시간 {Shotgun.Remaining(Now):0.0}초 · {Shotgun.hits}회 내려찍기 · 같은 위치도 반복 타격 가능",guiStyle);
             GUILayout.EndArea();return;
         }
-        GUILayout.Label(selected==9?"판 아래 투석기에서 판 안쪽으로 조준 · 누르는 시간으로 세기 1~5 · 최대 충전은 판을 넘어갑니다":selected==3?"내 돌을 뒤로 당긴 거리만큼 힘이 쌓입니다 · 놓으면 반대 방향으로 발사":AugmentAim.Directional(selected)?"대상을 누르고 원하는 방향으로 드래그한 뒤 놓기":"표시된 범위를 확인하고 클릭",guiStyle);
+        GUILayout.Label(selected==9?"마우스로 조준 · 누르면 힘이 빠르게 왕복 · 놓으면 표시된 착탄점으로 발사":selected==3?"내 돌을 뒤로 당긴 거리만큼 힘이 쌓입니다 · 놓으면 반대 방향으로 발사":AugmentAim.Directional(selected)?"대상을 누르고 원하는 방향으로 드래그한 뒤 놓기":"표시된 범위를 확인하고 클릭",guiStyle);
         if(selected==2)GUILayout.Label("움직이는 돌이 목표 칸 위에 올 때 클릭하세요.",guiStyle);
         GUILayout.Label(Meteor.active?$"남은 시간 {Meteor.Remaining(Now):0.0}초 · {Meteor.clicks}회 · 범위 {Meteor.Size}×{Meteor.Size}":selected==11?"낙하 위치 클릭 → 3초간 연타 → 자동 낙하 · 우클릭 / Esc 취소":$"세기 {power} · 우클릭 / Esc 취소",guiStyle);
         if(selected==9)
         {
-            float charge=dragging?Mathf.Clamp01((Time.unscaledTime-catapultChargeStarted)/1.6f):0;
+            float charge=dragging?AugmentAim.CatapultCharge(Time.unscaledTime-catapultChargeStarted):0;
             Rect gauge=GUILayoutUtility.GetRect(430,22);GUI.Box(gauge,GUIContent.none);
             Rect fill=new Rect(gauge.x+3,gauge.y+3,(gauge.width-6)*charge,gauge.height-6);
             Color old=GUI.color;GUI.color=Color.Lerp(new Color(.25f,.85f,.35f),new Color(1,.25f,.12f),charge);GUI.DrawTexture(fill,Texture2D.whiteTexture);GUI.color=old;

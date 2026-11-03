@@ -6,6 +6,18 @@ public static class AugmentAim
 {
     public const int CatapultMaxPower = 5;
     public static int CatapultDistance(int power) => Mathf.Clamp(power,1,CatapultMaxPower)==CatapultMaxPower?22:Mathf.Clamp(power,1,CatapultMaxPower)*4;
+    public static float CatapultCharge(float seconds)=>Mathf.PingPong(Mathf.Max(0,seconds)*2.5f,1f);
+    public static int CatapultPower(float seconds)=>Mathf.Clamp(1+Mathf.FloorToInt(CatapultCharge(seconds)*CatapultMaxPower),1,CatapultMaxPower);
+    public static bool CatapultDirection(Vector2 origin,Vector2 pointer,out Vector2Int direction)
+    {
+        Vector2 delta=pointer-origin;direction=Vector2Int.zero;if(delta.magnitude<.3f)return false;
+        delta.Normalize();direction=new Vector2Int(Mathf.RoundToInt(delta.x*1000),Mathf.RoundToInt(delta.y*1000));return true;
+    }
+    public static Vector2Int CatapultLanding(Vector2Int origin,Vector2Int direction,int power)
+    {
+        Vector2 offset=PreciseDirection(direction)*CatapultDistance(power);
+        return origin+new Vector2Int(Mathf.RoundToInt(offset.x),Mathf.RoundToInt(offset.y));
+    }
     public static bool Directional(int id) => id == 3 || id == 9 || id == 13 || id == 17;
     public static bool Drag(Vector2 origin, Vector2 pointer, bool reverse, out Vector2Int direction, out int power)
     {
@@ -48,9 +60,13 @@ public static class AugmentAim
             Vector2 precise=PreciseDirection(direction);
             origin+=new Vector2Int(Mathf.RoundToInt(precise.x*Mathf.Clamp(power,1,8)),Mathf.RoundToInt(precise.y*Mathf.Clamp(power,1,8)));
         }
-        else if(id==9)origin+=direction*CatapultDistance(power);
+        else if(id==9)
+        {
+            origin=CatapultLanding(origin,direction,power);
+            if(!AugmentBoard.Inside(origin.x,origin.y))return cells;
+        }
         else if (id == 17) origin += direction;
-        int min = id == 1 || id == 15 || id == 19 ? -1 : id == 11 ? 1 - Mathf.Clamp(power, 1, 5) : 0;
+        int min = id == 1 || id == 9 || id == 15 || id == 19 ? -1 : id == 11 ? 1 - Mathf.Clamp(power, 1, 5) : 0;
         int max = id == 6 ? 1 : -min;
         for (int y = min; y <= max; y++) for (int x = min; x <= max; x++)
         {

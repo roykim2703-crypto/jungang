@@ -106,6 +106,26 @@ public static class GameFlowSmokeChecks
                     Require(slot!=null&&slot.Root!=null&&slot.Root.activeInHierarchy&&slot.Button!=null&&slot.Artwork!=null&&slot.Artwork.enabled&&slot.Artwork.sprite!=null,field+" has an invisible or disconnected card");
             }
         });
+        Check("Normalized half-step grades determine all three acquisition pools",()=>
+        {
+            Prepare();
+            var expected=new Dictionary<int,float>{{14,5},{17,4.5f},{3,4.5f},{12,4.5f},{13,3.5f},{15,3.5f},{1,3.5f},{19,4},{20,4.5f},{8,3},{6,2.5f},{2,2.5f},{16,3},{4,1},{11,2},{10,1.5f},{9,3}};
+            foreach(var entry in expected)Require(match.Cards.CardList.Find(c=>c.Name==entry.Key).Value==entry.Value,"wrong grade for "+entry.Key);
+            foreach(var phase in new[]{CardManager.AcquisitionPhase.Early,CardManager.AcquisitionPhase.Middle,CardManager.AcquisitionPhase.Late})
+            {
+                bool Eligible(CardManager.CardData c)=>phase==CardManager.AcquisitionPhase.Early?c.Value>=1&&c.Value<3:phase==CardManager.AcquisitionPhase.Middle?c.Value>=2&&c.Value<4:c.Value>=2;
+                foreach(var card in match.Cards.CardList)
+                {
+                    Require(card.Value*2==Mathf.Round(card.Value*2),"non-half grade remained");
+                    Require((card.AvailableFrom<=phase&&phase<=card.AvailableUntil)==Eligible(card),"wrong pool for "+card.Name);
+                }
+                for(int draw=0;draw<20;draw++)
+                {
+                    Require(match.Cards.TryDrawOffers(phase,0,match.Cards.CardList.Count,out var black,out var white),"fewer than six candidates");
+                    Require(black.Concat(white).All(Eligible)&&black.Concat(white).Select(c=>c.Name).Distinct().Count()==6,"invalid or duplicate offer");
+                }
+            }
+        });
         Check("Result scene is available for victory, defeat and review",()=>
         {
             Require(Application.CanStreamedLevelBeLoaded("Assets/Scenes/Result.unity"),"Result scene is missing from the build scene list");
@@ -319,6 +339,27 @@ public static class GameFlowSmokeChecks
             Require(!Send("ability",x:9,y:18,id:9,power:5),"outside shot accepted");
             Require(!match.Cards.BlackInventory[0].Used&&match.Revision==revision,"failed shot consumed card/state");
             Require(Send("ability",x:9,y:18,id:9,power:1)&&match.Cards.BlackInventory[0].Used,"valid shot failed");
+        });
+        Check("Catapult release uses its oscillating preview and shares the fixed landing and flight",()=>
+        {
+            Prepare(9);match.ChooseAbility(true,9);
+            var guide=UnityEngine.Object.FindAnyObjectByType<가이드_돌_코드>();var pointer=guide.centerPos+Vector3.up*guide.gap*7;
+            var handle=typeof(AugmentMatch).GetMethod("HandlePointer",Private);
+            handle.Invoke(match,new object[]{pointer,true,false,false});
+            foreach(var sample in new[]{new Vector2(.18f,3),new Vector2(.38f,5),new Vector2(.62f,3)})
+            {
+                typeof(AugmentMatch).GetField("catapultChargeStarted",Private).SetValue(match,Time.unscaledTime-sample.x);
+                handle.Invoke(match,new object[]{pointer,false,false,false});
+                Require((int)typeof(AugmentMatch).GetField("power",Private).GetValue(match)==(int)sample.y,"charge did not oscillate");
+            }
+            match.Board.cells[6*19+10]=2;match.Board.hidden[6*19+10]=2;
+            handle.Invoke(match,new object[]{pointer,false,true,false});
+            Require(match.Board.At(9,6)==1&&match.Board.IsAnchored(9,6),"release missed displayed landing");
+            var effect=match.CardOutcomes.Last();Require(effect.power==3&&effect.dy<0,"flight lost released aim");
+            Require(!effect.changedCells.Contains(6*19+11),"pushed hidden stone leaked into motion data");
+            string json=match.CaptureForSide(2);match.ResetMatch(12345);match.WaitForNetwork();match.Restore(json);
+            Require(match.Board.IsAnchored(9,6)&&match.Board.At(9,6)==1,"peer lost absolute stone");
+            Require(match.GetComponentsInChildren<AugmentEffectView>().Any(v=>v.name=="AugmentEffect_9"&&v.IsAbilityMotion),"peer flight not played");
         });
         Check("Shotgun repeats every click for three seconds without extra card use or early placement",()=>
         {

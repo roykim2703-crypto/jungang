@@ -84,6 +84,18 @@ public sealed class AugmentEffectView : MonoBehaviour
         center.transform.localScale=Vector3.one*size*.13f;center.transform.localRotation=Quaternion.Euler(0,0,45);
         return root;
     }
+    public static GameObject CreateAnchoredMarker(Transform parent,Vector3 position,float gap)
+    {
+        var root=new GameObject("AbsoluteStoneMarker");root.transform.SetParent(parent,false);root.transform.position=position;
+        for(int y=-1;y<=1;y+=2)for(int x=-1;x<=1;x+=2)
+        {
+            var backing=Box(root.transform,new Color(.12f,.15f,.2f));backing.sortingOrder=112;
+            backing.transform.localPosition=new Vector3(x*gap*.33f,y*gap*.33f,0);backing.transform.localScale=Vector3.one*gap*.19f;
+            var bolt=Box(root.transform,new Color(.3f,.85f,1));bolt.sortingOrder=113;
+            bolt.transform.localPosition=backing.transform.localPosition;bolt.transform.localScale=Vector3.one*gap*.1f;
+        }
+        return root;
+    }
     public static void Play(Transform parent,가이드_돌_코드 guide,int id,int x,int y,int power,int[] before,int[] after,Vector2Int direction=default,int[] removedCells=null)
     {
         if(guide==null||AugmentVisibility.IsSecret(id))return;
@@ -171,7 +183,7 @@ public sealed class AugmentEffectView : MonoBehaviour
             Vector2 precise=AugmentAim.PreciseDirection(direction);
             center+=new Vector3(precise.x,-precise.y,0)*gap*Mathf.Clamp(power,1,8);
         }
-        else if(id==9)center+=new Vector3(direction.x,-direction.y,0)*gap*AugmentAim.CatapultDistance(power);
+        else if(id==9){var landing=AugmentAim.CatapultLanding(new Vector2Int(x,y),direction,power);center=Position(guide,landing.x,landing.y);}
         if(id==1&&Artwork!=null&&Artwork.Fist!=null){yield return AnimateFist(root,center,gap);yield break;}
         if(id==5&&Artwork!=null&&Artwork.Hammer!=null){yield return AnimateHammer(root,guide);yield break;}
         if(id==9&&CatapultFrame(0)!=null){yield return AnimateCatapult(root,guide,center,power,direction);yield break;}

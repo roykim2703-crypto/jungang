@@ -21,7 +21,7 @@ public sealed class AugmentTargetView : MonoBehaviour
     {
         foreach (var box in boxes) if (box != null) box.gameObject.SetActive(false);
     }
-    public void Show(List<Vector2Int> cells, Vector3 center, float gap, Color color, Vector2Int? origin, Vector2Int direction, int power, Vector3? pullPosition)
+    public void Show(List<Vector2Int> cells, Vector3 center, float gap, Color color, Vector2Int? origin, Vector2Int direction, int power, Vector3? pullPosition,Vector3? trajectoryEnd=null)
     {
         count = 0;
         foreach (var cell in cells)
@@ -38,7 +38,7 @@ public sealed class AugmentTargetView : MonoBehaviour
         {
             Vector3 from = Position(origin.Value, center, gap);
             Box(from, Vector3.one * gap * .22f, Color.cyan);
-            Vector3 to = from + new Vector3(direction.x, -direction.y, 0) * gap * power;
+            Vector3 to = trajectoryEnd??from + new Vector3(direction.x, -direction.y, 0) * gap * power;
             for (int i = 1; i <= 12; i++)
                 Box(Vector3.Lerp(from, to, i / 12f), Vector3.one * gap * (i == 12 ? .23f : .075f), Color.cyan);
             if (pullPosition.HasValue)
