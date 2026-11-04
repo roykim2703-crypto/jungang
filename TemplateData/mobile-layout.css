@@ -9,6 +9,12 @@ html.jungang-mobile, .jungang-mobile body {
 }
 .jungang-mobile #unity-fullscreen-container { flex: none; }
 .jungang-mobile #unity-canvas { touch-action: none; }
+#unity-container:fullscreen {
+  display: flex; align-items: center; justify-content: center;
+  box-sizing: border-box; background: #171717; transform: none;
+}
+#unity-container:fullscreen #unity-fullscreen-container { flex: none; }
+#unity-container:fullscreen #unity-footer { display: none; }
 #mobile-rotate-guide { display: none; }
 @media (orientation: portrait) {
   .jungang-mobile #mobile-rotate-guide {
