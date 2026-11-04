@@ -15,8 +15,39 @@ public sealed class AugmentBoard
     public int turn = 1, winner, moves, sequence;
     public int grayNext, convertNext, takeover, capture, replay, noSix;
     public int[] giant = { -1, -1, -1 }, giantTurns = new int[3];
+    public const int GolemCell = 6;
+    public bool CanSummonGolem(int x,int y,int owner)
+    {
+        if(!Inside(x-1,y-1)||!Inside(x+1,y+1))return false;
+        for(int oy=-1;oy<=1;oy++)for(int ox=-1;ox<=1;ox++)
+        {
+            int p=(y+oy)*19+x+ox;
+            if(!Mutable(p)||(cells[p]!=0&&cells[p]!=owner))return false;
+        }
+        return true;
+    }
+    private void DestroyGolemAt(int cell)
+    {
+        if(cell<0||cell>=361)return;
+        for(int owner=1;owner<=2;owner++)
+        {
+            int center=giant[owner];if(center<0||Math.Abs(cell%19-center%19)>1||Math.Abs(cell/19-center/19)>1)continue;
+            giant[owner]=-1;giantTurns[owner]=0;
+            for(int oy=-1;oy<=1;oy++)for(int ox=-1;ox<=1;ox++)
+            {
+                int x=center%19+ox,y=center/19+oy;if(!Inside(x,y))continue;int p=y*19+x;
+                if(cells[p]==GolemCell){cells[p]=0;hidden[p]=0;order[p]=++sequence;}
+            }
+        }
+    }
     public int piece = -1, pieceOwner, pieceKind;
     public int lastAbility = -1;
+    [Serializable] public struct SortMotion { public int from,to,color,number; }
+    [NonSerialized] public List<SortMotion> sortMotions = new List<SortMotion>();
+    [Serializable] public struct CapturedStone { public int cell,color; }
+    [NonSerialized] public List<CapturedStone> capturedStones = new List<CapturedStone>();
+    [Serializable] public struct StoneConversion { public int cell,from,to; }
+    [NonSerialized] public List<StoneConversion> stoneConversions = new List<StoneConversion>();
     // 1: front (swap colors), 2: back (remove own stones). Chosen only by the host.
     public int lastFlipResult;
     public int[] blackPremoves = new int[0], whitePremoves = new int[0];
@@ -46,12 +77,16 @@ public sealed class AugmentBoard
         if(!Inside(x,y))return 5;
         int p=y*19+x;return hidden[p]!=0&&hidden[p]!=viewer?0:cells[p];
     }
-    private bool Mutable(int p) => p >= 0 && p < 361 && cells[p] != 3 && cells[p] != 5&&!IsAnchored(p%19,p/19);
+    private bool Mutable(int p) => p >= 0 && p < 361 && cells[p] != 3 && cells[p] != 5&&cells[p]!=GolemCell&&!IsAnchored(p%19,p/19);
     private void Set(int p, int color)
     {
+        if(p>=0&&p<361&&cells[p]==GolemCell)
+        {
+            if(color!=0&&color!=5)return;
+            DestroyGolemAt(p);
+        }
         if (!Mutable(p)) return;
         ClearLargeStoneAt(p);
-        for(int side=1;side<=2;side++)if(giant[side]==p)giant[side]=-1;
         cells[p] = color; hidden[p] = 0; order[p] = ++sequence;
         if (piece == p && color != pieceOwner) piece = -1;
     }
@@ -111,6 +146,8 @@ public sealed class AugmentBoard
     public bool Place(int x,int y,bool augmented)=>Place(x,y,augmented,out _);
     public bool Place(int x, int y, bool augmented,out bool revealedHiddenStone)
     {
+        capturedStones.Clear();
+        stoneConversions.Clear();
         revealedHiddenStone=false;
         automaticPlacements.Clear();
         blockedPremoves=0;
@@ -141,6 +178,7 @@ public sealed class AugmentBoard
         if(capture==turn)Capture(turn);
         int color = grayNext == turn ? 4 : convertNext == turn ? 3 - turn : turn;
         Set(p,color);
+        if(convertNext==turn&&color!=4)stoneConversions.Add(new StoneConversion{cell=p,from=turn,to=color});
         if (grayNext == turn) { grayNext = 0; noSix = 3-turn; }
         if (convertNext == turn) convertNext = 0;
         if (capture == turn) { Capture(turn); capture = 0; }
@@ -192,7 +230,7 @@ public sealed class AugmentBoard
         if(noSix==turn)noSix=0;
         if (giant[turn] >= 0)
         {
-            if (cells[giant[turn]] != turn) giant[turn] = -1;
+            if (cells[giant[turn]] != GolemCell) { giant[turn] = -1;giantTurns[turn]=0; }
             else if (++giantTurns[turn] >= 4) winner = turn;
         }
         turn = 3 - turn;
@@ -225,7 +263,13 @@ public sealed class AugmentBoard
                     int q=y*19+x; if(cells[q]==0) liberty=true;
                     if(cells[q]==3-owner && seen.Add(q)) group.Add(q);
                 }
-            if(!liberty) foreach(int q in group) Set(q,0);
+            if(!liberty)
+            {
+                // Record the whole group before removing a large stone clears its footprint.
+                foreach(int q in group)if(Mutable(q)&&hidden[q]==0)
+                    capturedStones.Add(new CapturedStone{cell=q,color=cells[q]});
+                foreach(int q in group)Set(q,0);
+            }
         }
     }
     private int StoneAnchor(int p)
@@ -253,7 +297,6 @@ public sealed class AugmentBoard
         }
         int[] colors=new int[source.Length],stamps=new int[source.Length],invisible=new int[source.Length];
         int largeOwner=largeStone[anchor],movedPiece=Array.IndexOf(source,piece);
-        int blackGiant=Array.IndexOf(source,giant[1]),whiteGiant=Array.IndexOf(source,giant[2]);
         for(int i=0;i<source.Length;i++)
         {
             int cell=source[i];colors[i]=cells[cell];stamps[i]=order[cell];invisible[i]=hidden[cell];
@@ -266,8 +309,6 @@ public sealed class AugmentBoard
         }
         if(largeOwner!=0)largeStone[destination[0]]=largeOwner;
         if(movedPiece>=0)piece=destination[movedPiece];
-        if(blackGiant>=0)giant[1]=destination[blackGiant];
-        if(whiteGiant>=0)giant[2]=destination[whiteGiant];
         return true;
     }
     private bool FlickStone(int start,int rawDx,int rawDy,int power)
@@ -346,6 +387,9 @@ public sealed class AugmentBoard
     }
     public bool Ability(int id,int x,int y,int dx,int dy,int power,Func<int,int,int> random)
     {
+        sortMotions.Clear();
+        capturedStones.Clear();
+        stoneConversions.Clear();
         if(winner!=0||premoveSetup!=0||!Inside(x,y)) return false;
         int p=y*19+x, own=turn, enemy=3-turn;
         int rawDx=dx,rawDy=dy;
@@ -359,7 +403,7 @@ public sealed class AugmentBoard
                 int index=random(0,candidates.Count),candidate=candidates[index];candidates.RemoveAt(index);
                 var trial=JsonUtility.FromJson<AugmentBoard>(JsonUtility.ToJson(this));
                 if(!trial.Ability(candidate,x,y,dx,dy,power,random))continue;
-                JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(trial),this);return true;
+                JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(trial),this);sortMotions=trial.sortMotions;capturedStones=trial.capturedStones;stoneConversions=trial.stoneConversions;return true;
             }
             return false;
         }
@@ -429,9 +473,13 @@ public sealed class AugmentBoard
                 var segment=new List<int>();
                 foreach(int q in line) {if(!Mutable(q)){Sort(segment);segment.Clear();}else segment.Add(q);}Sort(segment);break;
             case 14:
-                if(!Mutable(p))return false;
+                if(!CanSummonGolem(x,y,own))return false;
                 for(int i=0;i<361;i++)if(cells[i]==own)Set(i,0);
-                Set(p,own);giant[own]=p;giantTurns[own]=0;break;
+                DestroyGolemAt(giant[own]);
+                giant[own]=p;giantTurns[own]=0;
+                for(int oy=-1;oy<=1;oy++)for(int ox=-1;ox<=1;ox++)
+                {int q=(y+oy)*19+x+ox;cells[q]=GolemCell;hidden[q]=0;order[q]=++sequence;}
+                break;
             case 15:
                 for(int ay=-1;ay<=1;ay++)for(int ax=-1;ax<=1;ax++)if(Inside(x+ax,y+ay))Set((y+ay)*19+x+ax,5);
                 break;
@@ -454,6 +502,7 @@ public sealed class AugmentBoard
         var stones=segment.FindAll(p=>cells[p]!=0);
         stones.Sort((a,b)=>order[a].CompareTo(order[b]));
         int[] colors=stones.ConvertAll(p=>cells[p]).ToArray();
+        for(int i=0;i<stones.Count;i++)sortMotions.Add(new SortMotion{from=stones[i],to=segment[i],color=colors[i],number=i+1});
         foreach(int p in segment)Set(p,0);
         for(int i=0;i<colors.Length;i++)Set(segment[i],colors[i]);
     }
@@ -466,6 +515,8 @@ public sealed class AugmentBoard
     }
     public bool MovePiece(int x,int y)
     {
+        capturedStones.Clear();
+        stoneConversions.Clear();
         automaticPlacements.Clear();
         blockedPremoves=0;
         if(!CanMovePiece(x,y))return false;

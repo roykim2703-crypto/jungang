@@ -11,6 +11,8 @@ public sealed class GameAudio : MonoBehaviour
     private const string StoneKey = "Audio.StoneVolume";
     private static GameAudio instance;
     private AudioSource music, stone, card;
+    private AudioSource capturePing;
+    private static readonly AudioClip[] captureTones=new AudioClip[8];
     public float MusicVolume { get; private set; }
     public float StoneVolume { get; private set; }
     public static GameAudio Instance
@@ -36,6 +38,7 @@ public sealed class GameAudio : MonoBehaviour
         music = CreateSource(musicClip, MusicVolume, true);
         stone = CreateSource(stoneClip, StoneVolume, false);
         card = CreateSource(cardSelectionClip, StoneVolume, false);
+        capturePing = CreateSource(null, StoneVolume, false);
         if (musicClip != null) music.Play();
     }
 
@@ -59,11 +62,29 @@ public sealed class GameAudio : MonoBehaviour
     public void SetStoneVolume(float value)
     {
         StoneVolume = Mathf.Clamp01(value);
-        stone.volume = card.volume = StoneVolume;
+        stone.volume = card.volume = capturePing.volume = StoneVolume;
         PlayerPrefs.SetFloat(StoneKey, StoneVolume);
     }
     public void PlayStone() { if (stoneClip != null) stone.PlayOneShot(stoneClip); }
     public void PlayCardSelection() { if (cardSelectionClip != null) card.PlayOneShot(cardSelectionClip); }
+    public void PlayCapturePing(int index)
+    {
+        int note=Mathf.Abs(index)%captureTones.Length;
+        if(captureTones[note]==null)
+        {
+            const int rate=44100;var samples=new float[rate/4];
+            float frequency=880*Mathf.Pow(2,note/12f);
+            for(int i=0;i<samples.Length;i++)
+            {
+                float time=(float)i/rate,attack=Mathf.Clamp01(time/.004f);
+                float envelope=attack*Mathf.Exp(-time*20)*Mathf.Clamp01((.25f-time)/.025f);
+                samples[i]=(.32f*Mathf.Sin(2*Mathf.PI*frequency*time)+.1f*Mathf.Sin(2*Mathf.PI*frequency*2.5f*time))*envelope;
+            }
+            var clip=AudioClip.Create("CaptureDing_"+note,samples.Length,1,rate,false);
+            clip.hideFlags=HideFlags.HideAndDontSave;clip.SetData(samples,0);captureTones[note]=clip;
+        }
+        capturePing.PlayOneShot(captureTones[note],.65f);
+    }
     public void Save() { PlayerPrefs.Save(); }
     private void OnApplicationPause(bool paused) { if (paused) Save(); }
     private void OnApplicationQuit() { Save(); }

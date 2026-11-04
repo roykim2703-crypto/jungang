@@ -4,6 +4,86 @@ using UnityEngine;
 public class AugmentBoardTests
 {
     private static int First(int min,int max)=>min;
+    [TestCase(1)][TestCase(2)]
+    public void ConversionCueRecordsThePlacedColorAndTheFinalColor(int side)
+    {
+        var b=new AugmentBoard{turn=side,convertNext=side};
+        Assert.IsTrue(b.Place(9,9,false));Assert.AreEqual(3-side,b.At(9,9));
+        Assert.AreEqual(1,b.stoneConversions.Count);var cue=b.stoneConversions[0];
+        Assert.AreEqual(180,cue.cell);Assert.AreEqual(side,cue.from);Assert.AreEqual(3-side,cue.to);
+        Assert.IsTrue(b.Place(8,8,false));Assert.IsEmpty(b.stoneConversions);
+    }
+    [Test]
+    public void ConversionCueIsNotEmittedWhenGrayOverridesItOrAHiddenStoneBlocksPlacement()
+    {
+        var b=new AugmentBoard{grayNext=1,convertNext=1};Assert.IsTrue(b.Place(9,9,false));
+        Assert.AreEqual(4,b.At(9,9));Assert.IsEmpty(b.stoneConversions);
+        b=new AugmentBoard{convertNext=1};b.cells[180]=b.hidden[180]=2;
+        Assert.IsTrue(b.Place(9,9,false,out bool revealed));Assert.IsTrue(revealed);Assert.IsEmpty(b.stoneConversions);
+    }
+    [Test]
+    public void ConversionCueAlsoTracksAnAutomaticReservation()
+    {
+        var b=new AugmentBoard{convertNext=2,whitePremoves=new[]{10,11,12,13,14,15}};
+        Assert.IsTrue(b.Place(0,0,false));Assert.AreEqual(1,b.stoneConversions.Count);
+        Assert.AreEqual(10,b.stoneConversions[0].cell);Assert.AreEqual(2,b.stoneConversions[0].from);Assert.AreEqual(1,b.stoneConversions[0].to);
+    }
+    [Test]
+    public void CaptureRecordsEachRemovedStoneOnceAndClearsTheNextActivation()
+    {
+        var b=new AugmentBoard();b.cells[0]=b.cells[1]=2;b.cells[2]=b.cells[19]=b.cells[20]=1;
+        Assert.IsTrue(b.Ability(4,9,9,1,0,1,First));
+        Assert.AreEqual(2,b.capturedStones.Count);
+        CollectionAssert.AreEquivalent(new[]{0,1},b.capturedStones.ConvertAll(s=>s.cell));
+        foreach(var stone in b.capturedStones){Assert.AreEqual(2,stone.color);Assert.AreEqual(0,b.cells[stone.cell]);}
+        Assert.IsTrue(b.Ability(8,9,9,1,0,1,First));Assert.IsEmpty(b.capturedStones);
+    }
+    [Test]
+    public void CaptureOnTheFollowingPlacementAlsoRecordsItsPresentation()
+    {
+        var b=new AugmentBoard();b.cells[0]=2;b.cells[1]=1;
+        Assert.IsTrue(b.Ability(4,9,9,1,0,1,First));Assert.IsEmpty(b.capturedStones);
+        Assert.IsTrue(b.Place(0,1,false));Assert.AreEqual(0,b.cells[0]);
+        Assert.AreEqual(1,b.capturedStones.Count);Assert.AreEqual(0,b.capturedStones[0].cell);
+        Assert.IsTrue(b.Place(8,8,false));Assert.IsEmpty(b.capturedStones);
+    }
+    [Test]
+    public void CapturePresentationExcludesHiddenAndProtectedStones()
+    {
+        var b=new AugmentBoard();b.cells[0]=b.cells[1]=2;b.hidden[0]=2;b.anchored[1]=2;
+        b.cells[2]=b.cells[19]=b.cells[20]=1;
+        Assert.IsTrue(b.Ability(4,9,9,1,0,1,First));
+        Assert.AreEqual(0,b.cells[0]);Assert.AreEqual(2,b.cells[1]);Assert.IsEmpty(b.capturedStones);
+    }
+    [Test]
+    public void SortRecordsIdentityEvenWhenSameColoredStonesSwapPlaces()
+    {
+        var b=new AugmentBoard();b.cells[0]=b.cells[1]=1;b.order[0]=20;b.order[1]=10;
+        Assert.IsTrue(b.Ability(13,0,0,1,0,1,First));
+        Assert.AreEqual(2,b.sortMotions.Count);
+        Assert.AreEqual(1,b.sortMotions[0].from);Assert.AreEqual(0,b.sortMotions[0].to);Assert.AreEqual(1,b.sortMotions[0].number);
+        Assert.AreEqual(0,b.sortMotions[1].from);Assert.AreEqual(1,b.sortMotions[1].to);Assert.AreEqual(2,b.sortMotions[1].number);
+        Assert.AreEqual(1,b.At(0,0));Assert.AreEqual(1,b.At(1,0));
+        Assert.IsTrue(b.Ability(8,0,0,1,0,1,First));Assert.IsEmpty(b.sortMotions);
+    }
+    [TestCase(1,0)][TestCase(0,1)][TestCase(1,1)][TestCase(-1,1)]
+    public void SortNumbersRestartAfterAnAnchoredObstacle(int dx,int dy)
+    {
+        var b=new AugmentBoard();int center=9*19+9;
+        int step=dy*19+dx,first=center-step*2,last=center+step*2;
+        b.cells[center]=2;b.anchored[center]=1;
+        b.cells[first]=1;b.order[first]=20;b.cells[last]=2;b.order[last]=10;
+        Assert.IsTrue(b.Ability(13,9,9,dx,dy,1,First));
+        Assert.AreEqual(2,b.sortMotions.Count);
+        Assert.AreEqual(1,b.sortMotions[0].number);Assert.AreEqual(1,b.sortMotions[1].number);
+        foreach(var motion in b.sortMotions)
+        {
+            Assert.AreNotEqual(center,motion.from);Assert.AreNotEqual(center,motion.to);
+            Assert.AreEqual(motion.color,b.cells[motion.to]);
+            Assert.AreEqual(System.Math.Sign(motion.from-center),System.Math.Sign(motion.to-center));
+        }
+        Assert.AreEqual(2,b.cells[center]);
+    }
     [Test]
     public void CatapultClearsTheCenterAndPushesAllEightNeighborsOutwardOnce()
     {
@@ -196,10 +276,52 @@ public class AugmentBoardTests
         Assert.IsTrue(b.Place(9,9,true));
     }
     [Test]
-    public void DestroyedGiantCannotWinAfterReplacementOnSameCell()
+    public void GolemIsAnIndependentThreeByThreeOccupantAndDoesNotConnectStones()
     {
-        var b=new AugmentBoard();b.Ability(14,9,9,1,0,1,First);
-        b.turn=2;b.Ability(2,9,9,1,0,1,First);Assert.AreEqual(-1,b.giant[1]);
+        var b=new AugmentBoard();b.cells[0]=1;Assert.IsTrue(b.Ability(14,9,9,1,0,1,First));
+        Assert.AreEqual(0,b.cells[0]);Assert.AreEqual(9,System.Array.FindAll(b.cells,c=>c==AugmentBoard.GolemCell).Length);
+        for(int y=8;y<=10;y++)for(int x=8;x<=10;x++)Assert.IsFalse(b.Legal(x,y,1,false));
+        Assert.IsFalse(b.Ability(2,9,9,1,0,1,First));Assert.IsFalse(b.Ability(17,9,9,1,0,1,First));
+        for(int x=3;x<=7;x++)b.cells[9*19+x]=1;
+        b.CheckWinner();Assert.AreEqual(0,b.winner);Assert.AreEqual(180,b.giant[1]);
+    }
+    [TestCase(-1,-1)][TestCase(0,-1)][TestCase(1,-1)]
+    [TestCase(-1,0)][TestCase(0,0)][TestCase(1,0)]
+    [TestCase(-1,1)][TestCase(0,1)][TestCase(1,1)]
+    public void AOneCellExplosionAtAnyGolemCellDestroysTheWholeEntity(int ox,int oy)
+    {
+        var b=new AugmentBoard();Assert.IsTrue(b.Ability(14,9,9,1,0,1,First));b.turn=2;
+        Assert.IsTrue(b.Ability(11,9+ox,9+oy,1,0,1,First));
+        Assert.AreEqual(-1,b.giant[1]);Assert.AreEqual(0,b.giantTurns[1]);
+        Assert.AreEqual(0,System.Array.FindAll(b.cells,c=>c==AugmentBoard.GolemCell).Length);
+    }
+    [TestCase(0,0)][TestCase(18,18)][TestCase(0,9)][TestCase(9,18)]
+    public void GolemRequiresItsWholeFootprintInsideTheBoard(int x,int y)
+    {
+        var b=new AugmentBoard();b.cells[1]=1;
+        Assert.IsFalse(b.Ability(14,x,y,1,0,1,First));Assert.AreEqual(1,b.cells[1]);Assert.AreEqual(-1,b.giant[1]);
+    }
+    [Test]
+    public void GolemFootprintBlocksSummoningOnEnemiesAndSurvivesRecolorAndSort()
+    {
+        var b=new AugmentBoard();b.cells[8*19+8]=2;b.cells[0]=1;
+        Assert.IsFalse(b.Ability(14,9,9,1,0,1,First));Assert.AreEqual(1,b.cells[0]);
+        b.cells[8*19+8]=0;Assert.IsTrue(b.Ability(14,9,9,1,0,1,First));
+        Assert.IsTrue(b.Ability(19,9,9,1,0,1,First));Assert.IsTrue(b.Ability(20,9,9,1,0,1,First));
+        Assert.IsTrue(b.Ability(13,9,9,1,0,1,First));
+        Assert.AreEqual(9,System.Array.FindAll(b.cells,c=>c==AugmentBoard.GolemCell).Length);Assert.AreEqual(180,b.giant[1]);
+    }
+    [Test]
+    public void GolemSurvivalAndDestructionSurviveSnapshots()
+    {
+        var b=new AugmentBoard();Assert.IsTrue(b.Ability(14,9,9,1,0,1,First));
+        b=JsonUtility.FromJson<AugmentBoard>(JsonUtility.ToJson(b));
+        for(int round=0;round<4;round++)
+        {
+            Assert.IsTrue(b.Place(0,round*2,false));
+            if(round<3){Assert.AreEqual(0,b.winner);Assert.IsTrue(b.Place(18,round*2,false));}
+        }
+        Assert.AreEqual(1,b.winner);Assert.AreEqual(4,b.giantTurns[1]);
     }
     [Test]
     public void BigStoneUsesOneAnchorAndBreaksAsOneObject()
@@ -306,16 +428,14 @@ public class AugmentBoardTests
         Assert.IsFalse(b.Ability(3,5,8,1,0,8,First));
         CollectionAssert.AreEqual(before,b.cells);Assert.AreEqual(1,b.largeStone[8*19+5]);
     }
-    [TestCase(14)][TestCase(16)][TestCase(7)][TestCase(8)]
+    [TestCase(16)][TestCase(7)][TestCase(8)]
     public void FlickKeepsSpecialPropertiesWhenPushingAStone(int kind)
     {
         var b=new AugmentBoard();int source=9*19+7;
         b.cells[9*19+5]=1;b.cells[source]=kind==8?4:2;
-        if(kind==14){b.giant[2]=source;b.giantTurns[2]=2;}
         if(kind==16)b.hidden[source]=2;
         if(kind==7){b.piece=source;b.pieceOwner=2;b.pieceKind=1;}
         Assert.IsTrue(b.Ability(3,5,9,1,0,8,First));
-        if(kind==14){Assert.Greater(b.giant[2],source);Assert.AreEqual(2,b.cells[b.giant[2]]);Assert.AreEqual(2,b.giantTurns[2]);}
         if(kind==16){int target=System.Array.FindIndex(b.hidden,c=>c==2);Assert.Greater(target,source);Assert.AreEqual(2,b.cells[target]);}
         if(kind==7){Assert.Greater(b.piece,source);Assert.AreEqual(2,b.cells[b.piece]);Assert.AreEqual(2,b.pieceOwner);Assert.AreEqual(1,b.pieceKind);}
         if(kind==8)Assert.AreEqual(1,System.Array.FindAll(b.cells,c=>c==4).Length);

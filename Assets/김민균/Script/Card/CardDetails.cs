@@ -16,12 +16,14 @@ public sealed class CardDetails : MonoBehaviour, IPointerEnterHandler, IPointerE
     private CanvasGroup opacity;
     private Vector2 startPosition, endPosition;
     private float progress, startScale, finalScale;
+    private bool used;
 
-    public void Bind(TMP_Text titleText, string body, string value, Sprite picture, Sprite background)
+    public void Bind(TMP_Text titleText, string body, string value, Sprite picture, Sprite background,bool isUsed=false)
     {
-        bool changed = title != titleText.text || description != body || grade != value || artwork != picture;
+        bool changed = title != titleText.text || description != body || grade != value || artwork != picture||used!=isUsed;
         sourceTitle = titleText;
         title = titleText.text; description = body; grade = value; artwork = picture; frame = background;
+        used=isUsed;
         if (changed && overlay != null) { Hide(); Show(); }
     }
 
@@ -95,6 +97,7 @@ public sealed class CardDetails : MonoBehaviour, IPointerEnterHandler, IPointerE
         float x = startPosition.x > Screen.width * .5f ? bottomLeft.x - halfWidth - 12 : topRight.x + halfWidth + 12;
         endPosition = new Vector2(Mathf.Clamp(x, halfWidth + 12, Screen.width - halfWidth - 12),
             Mathf.Clamp(startPosition.y, halfHeight + 12, Screen.height - halfHeight - 12));
+        CardUsedAppearance.Apply(preview.gameObject,used);
         progress = 0; Animate();
     }
 

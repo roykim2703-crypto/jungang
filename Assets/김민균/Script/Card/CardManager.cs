@@ -17,6 +17,7 @@ public class CardManager : MonoBehaviour
         public string explanation;
         public bool Have;
         public bool Used;
+        public int ResolvedAbility = -1;
         public string DisplayName;
         public AcquisitionPhase AvailableFrom = AcquisitionPhase.Early;
         public AcquisitionPhase AvailableUntil = AcquisitionPhase.Late;
@@ -273,6 +274,7 @@ public class CardManager : MonoBehaviour
         public int seed, stones, round;
         public bool choosing, blackSelected, whiteSelected, turnBlack, used;
         public int[] black, white, blackOffers, whiteOffers;
+        public int[] blackResolved, whiteResolved;
         public bool[] blackUsed, whiteUsed;
     }
 
@@ -283,6 +285,7 @@ public class CardManager : MonoBehaviour
             turnBlack = currentTurnIsBlack, used = cardUsedThisTurn,
             black = blackInventory.ConvertAll(c => c.Name).ToArray(), white = whiteInventory.ConvertAll(c => c.Name).ToArray(),
             blackUsed = blackInventory.ConvertAll(c => c.Used).ToArray(), whiteUsed = whiteInventory.ConvertAll(c => c.Used).ToArray(),
+            blackResolved=blackInventory.ConvertAll(c=>c.ResolvedAbility).ToArray(),whiteResolved=whiteInventory.ConvertAll(c=>c.ResolvedAbility).ToArray(),
             blackOffers = Array.ConvertAll(blackOffers, c => c.Name), whiteOffers = Array.ConvertAll(whiteOffers, c => c.Name) };
     }
 
@@ -295,6 +298,18 @@ public class CardManager : MonoBehaviour
             AvailableUntil = source.AvailableUntil, Used = used, Have = !used };
     }
     public static CardData HiddenCard()=>new CardData{Name=-1,DisplayName="비공개 증강",explanation="상대의 후보와 획득한 증강은 공개되지 않습니다.",Have=false};
+    private void SetMysteryBoxAppearance(CardData card,int resolved)
+    {
+        if(card.Name!=0||!card.Used||resolved<=0)return;
+        var source=CardList.Find(c=>c.Name==resolved);if(source==null)return;
+        card.ResolvedAbility=resolved;card.DisplayName=source.DisplayName;card.ItemImage=source.ItemImage;
+        card.explanation=source.explanation;card.Value=2.5f;
+    }
+    public void RevealMysteryBox(bool black,int resolved)
+    {
+        var card=(black?blackInventory:whiteInventory).FindLast(c=>c.Name==0&&c.Used&&c.ResolvedAbility<0);
+        if(card==null)return;SetMysteryBoxAppearance(card,resolved);CardAvailabilityChanged?.Invoke();
+    }
 
     public void Restore(MatchCards state)
     {
@@ -304,6 +319,8 @@ public class CardManager : MonoBehaviour
         blackInventory.Clear(); whiteInventory.Clear();
         for (int i = 0; i < state.black.Length; i++) blackInventory.Add(CopyCard(state.black[i], state.blackUsed[i]));
         for (int i = 0; i < state.white.Length; i++) whiteInventory.Add(CopyCard(state.white[i], state.whiteUsed[i]));
+        if(state.blackResolved!=null)for(int i=0;i<blackInventory.Count&&i<state.blackResolved.Length;i++)SetMysteryBoxAppearance(blackInventory[i],state.blackResolved[i]);
+        if(state.whiteResolved!=null)for(int i=0;i<whiteInventory.Count&&i<state.whiteResolved.Length;i++)SetMysteryBoxAppearance(whiteInventory[i],state.whiteResolved[i]);
         blackOffers = Array.ConvertAll(state.blackOffers, id => CopyCard(id));
         whiteOffers = Array.ConvertAll(state.whiteOffers, id => CopyCard(id));
         if (IsChoosing)

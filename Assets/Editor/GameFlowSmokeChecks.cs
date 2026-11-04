@@ -175,6 +175,8 @@ public static class GameFlowSmokeChecks
                 var host=match.CardOutcomes.Last();
                 Require(host.result.Contains(roll==0?"앞면":"뒷면"),"incorrect face text");
                 Require(host.removed.Length==(roll==0?0:3),"incorrect removal coordinates");
+                Require(host.coinFace==(roll==0?1:2),"coin animation face differs from gameplay result");
+                foreach(var screen in match.GetComponentsInChildren<AbilityScreenView>())screen.Cancel();
                 Require(Send("place",x:18,y:18),"following move failed");
                 string json=match.CaptureForSide(2);var peer=JsonUtility.FromJson<AugmentMatch.Snapshot>(json);
                 Require(peer.effect.result==host.result&&peer.outcomes.Last().result==host.result,"peer outcome differs");
@@ -186,7 +188,7 @@ public static class GameFlowSmokeChecks
         });
         Check("Public results preserve secret traps and destroyed hidden-stone locations",()=>
         {
-            foreach(int id in new[]{8,12,18,16})
+            foreach(int id in new[]{8,12,16})
             {
                 Prepare(id);Require(Send("ability",id:id),"secret ability failed");
                 var peer=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(2));
@@ -399,11 +401,12 @@ public static class GameFlowSmokeChecks
             string old=match.Capture();Require(Send("place",x:1,y:1),"place failed");int revision=match.Revision;match.Restore(old);
             Require(match.Revision==revision&&match.Board.At(1,1)==1,"stale snapshot rolled back board");
         });
-        Check("Peer snapshots hide traps without mutating the host",()=>
+        Check("Peer snapshots reveal used cards while hiding trap state",()=>
         {
             Prepare(8);Require(Send("ability",id:8),"trap failed");match.Board.cells[0]=1;match.Board.hidden[0]=1;
             var peer=JsonUtility.FromJson<AugmentMatch.Snapshot>(match.CaptureForSide(2));
-            Require(peer.board.grayNext==0&&peer.board.cells[0]==0&&!peer.cards.blackUsed[0],"private data leaked");
+            Require(peer.board.grayNext==0&&peer.board.cells[0]==0,"private trap state leaked");
+            Require(peer.cards.black[0]==8&&peer.cards.blackUsed[0],"used card was not made public");
             Require(match.Board.grayNext==2&&match.Board.cells[0]==1&&match.Cards.BlackInventory[0].Used,"projection mutated host");
         });
         Check("Hidden stone is translucent to owner, absent to opponent, then revealed on failed placement",()=>

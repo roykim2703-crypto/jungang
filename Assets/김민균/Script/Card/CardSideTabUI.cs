@@ -286,16 +286,16 @@ public class CardSideTabUI : MonoBehaviour
             CardManager.CardData card = visibleCards[i];
             var match=AugmentMatch.Instance;
             bool privateOpponent=match!=null&&match.LocalSide!=0&&match.LocalSide!=(black?1:2);
-            if(privateOpponent)card=CardManager.HiddenCard();
+            bool hiddenOpponent=privateOpponent&&!card.Used;
+            if(hiddenOpponent)card=CardManager.HiddenCard();
             CardDetails details = slot.Root.GetComponent<CardDetails>();
             if (details == null) details = slot.Root.AddComponent<CardDetails>();
             int cardId = card.Name;
             string title = string.IsNullOrWhiteSpace(card.DisplayName) ? $"카드 {card.Name}" : card.DisplayName;
-            bool hideUsage=AugmentVisibility.IsSecret(cardId)&&match!=null&&!match.IsReviewMode&&match.LocalSide!=0&&match.LocalSide!=(black?1:2);
-            bool showUsed=card.Used&&!hideUsage;
-            slot.Title.text = showUsed ? $"{title} (사용됨)" : title;
+            bool showUsed=card.Used;
+            slot.Title.text = title;
             if (slot.Description != null) { slot.Description.gameObject.SetActive(true); slot.Description.text = card.explanation; }
-            if (slot.Value != null) { slot.Value.gameObject.SetActive(true); slot.Value.text = privateOpponent?"비공개":$"등급 {card.Value:0.#}"; }
+            if (slot.Value != null) { slot.Value.gameObject.SetActive(true); slot.Value.text = hiddenOpponent?"비공개":$"등급 {card.Value:0.#}"; }
             slot.Title.gameObject.SetActive(true);
             slot.Artwork.sprite = card.ItemImage;
             slot.Artwork.enabled = card.ItemImage != null;
@@ -303,8 +303,9 @@ public class CardSideTabUI : MonoBehaviour
                 && (AugmentMatch.Instance == null || AugmentMatch.Instance.CanControl(black ? 1 : 2));
             var face = slot.Button.targetGraphic as Image;
             ConfigureCompactText(slot,face);
-            details.Bind(slot.Title, card.explanation, (privateOpponent?"비공개":$"등급 {card.Value:0.#}") + (showUsed ? " · 사용됨" : ""),
-                card.ItemImage, face == null ? null : face.sprite);
+            details.Bind(slot.Title, card.explanation, hiddenOpponent?"비공개":$"등급 {card.Value:0.#}",
+                card.ItemImage, face == null ? null : face.sprite,showUsed);
+            CardUsedAppearance.Apply(slot.Root,showUsed);
             ColorBlock colors = slot.Button.colors;
             colors.fadeDuration = 0f;
             slot.Button.colors = colors;

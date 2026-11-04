@@ -78,6 +78,9 @@ public sealed class RoundedUI : BaseMeshEffect
             for (int edge = 0; edge < boundary.Count && polygon.Count > 0; edge++)
             {
                 Vector2 a = boundary[edge], b = boundary[(edge + 1) % boundary.Count];
+                // At half-width/half-height adjacent arcs share an endpoint. Floating point
+                // noise turns that zero-length edge into a cut through the entire picture.
+                if ((b - a).sqrMagnitude < .000001f) continue;
                 clipped.Clear();
                 UIVertex previous = polygon[polygon.Count - 1];
                 float previousDistance = Side(a, b, previous.position);

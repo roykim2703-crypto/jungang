@@ -4,6 +4,9 @@ using UnityEngine;
 /// <summary>Shared grid aiming math, independent of input devices and networking.</summary>
 public static class AugmentAim
 {
+    // A pendulum slows at either end and reaches maximum speed at the center.
+    public static float StackOffset(float seconds)=>Mathf.Sin(seconds*4f)*2f;
+    public static float StackSpeed(float seconds)=>Mathf.Abs(Mathf.Cos(seconds*4f));
     public const int CatapultMaxPower = 5;
     public static int CatapultDistance(int power) => Mathf.Clamp(power,1,CatapultMaxPower)==CatapultMaxPower?22:Mathf.Clamp(power,1,CatapultMaxPower)*4;
     public static float CatapultCharge(float seconds)=>Mathf.PingPong(Mathf.Max(0,seconds)*2.5f,1f);
@@ -66,7 +69,7 @@ public static class AugmentAim
             if(!AugmentBoard.Inside(origin.x,origin.y))return cells;
         }
         else if (id == 17) origin += direction;
-        int min = id == 1 || id == 9 || id == 15 || id == 19 ? -1 : id == 11 ? 1 - Mathf.Clamp(power, 1, 5) : 0;
+        int min = id == 1 || id == 9 || id == 14 || id == 15 || id == 19 ? -1 : id == 11 ? 1 - Mathf.Clamp(power, 1, 5) : 0;
         int max = id == 6 ? 1 : -min;
         for (int y = min; y <= max; y++) for (int x = min; x <= max; x++)
         {

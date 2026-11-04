@@ -1,16 +1,143 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using TMPro;
 
 /// <summary>Procedural effect placeholders, independent of confirmed card artwork and gameplay randomness.</summary>
 public sealed class AugmentEffectView : MonoBehaviour
 {
     public bool IsGolemSummon { get; private set; }
     public bool IsAbilityMotion { get; private set; }
+    public bool IsSortMotion { get; private set; }
+    public bool IsCaptureMotion { get; private set; }
+    public static bool IsCapturing(Transform parent)
+    {
+        if(parent==null)return false;
+        foreach(var effect in parent.GetComponentsInChildren<AugmentEffectView>())if(effect.IsCaptureMotion)return true;
+        return false;
+    }
+    public static void PlayCapture(Transform parent,가이드_돌_코드 guide,AugmentBoard.CapturedStone[] captures)
+    {
+        if(guide==null||captures==null||captures.Length==0)return;
+        var root=new GameObject("CaptureStoneSequence");root.transform.SetParent(parent,false);
+        var view=root.AddComponent<AugmentEffectView>();view.IsAbilityMotion=true;view.IsCaptureMotion=true;
+        view.StartCoroutine(AnimateCapture(root,guide,captures));
+    }
+    private static IEnumerator AnimateCapture(GameObject root,가이드_돌_코드 guide,AugmentBoard.CapturedStone[] captures)
+    {
+        var stones=new List<SpriteRenderer>();var rings=new List<LineRenderer>();var positions=new List<Vector3>();
+        foreach(var capture in captures)
+        {
+            if(capture.cell<0||capture.cell>=361||capture.color<1||capture.color>4)continue;
+            var sprite=capture.color==2||capture.color==4?guide.흰돌이미지:guide.검은돌이미지;
+            var stone=Art(root.transform,sprite,110);if(stone==null)continue;
+            stone.gameObject.name="CapturedStone_"+capture.cell;Fit(stone,guide.gap*.9f);
+            Vector3 position=Position(guide,capture.cell%19,capture.cell/19);
+            stone.transform.position=position;positions.Add(position);stones.Add(stone);
+            var ring=PlacementRing(root.transform,new Color(1,.78f,.18f));ring.name="CaptureHighlight_"+capture.cell;
+            ring.transform.position=position;ring.transform.localScale=Vector3.one*guide.gap*.52f;
+            ring.startWidth=ring.endWidth=guide.gap*.045f;ring.enabled=false;rings.Add(ring);
+        }
+        int count=stones.Count;if(count==0){Destroy(root);yield break;}
+        var scales=stones.ConvertAll(stone=>stone.transform.localScale);
+        float interval=Mathf.Min(.18f,1.8f/count),markedAt=(count-1)*interval;
+        float removalStart=markedAt+.38f,removeInterval=Mathf.Min(.13f,1.4f/count);
+        float duration=removalStart+(count-1)*removeInterval+.32f;
+        int announced=0;var audio=FindAnyObjectByType<GameAudio>();
+        for(float elapsed=0;elapsed<duration;elapsed+=Time.unscaledDeltaTime)
+        {
+            while(announced<count&&elapsed>=announced*interval)
+            {
+                if(audio!=null)audio.PlayCapturePing(announced);
+                announced++;
+            }
+            for(int i=0;i<count;i++)
+            {
+                float sinceMark=elapsed-i*interval;
+                float vanish=Mathf.Clamp01((elapsed-removalStart-i*removeInterval)/.28f);
+                float pulse=sinceMark<0?0:Mathf.Sin(Mathf.Clamp01(sinceMark/.28f)*Mathf.PI);
+                var stone=stones[i];
+                stone.transform.localScale=scales[i]*(1+.16f*pulse)*(1-vanish);
+                stone.transform.position=positions[i]+Vector3.up*guide.gap*.36f*vanish;
+                Color tint=Color.Lerp(Color.white,new Color(1,.75f,.22f),sinceMark<0?0:.4f+.35f*pulse);
+                tint.a=1-vanish;stone.color=tint;
+                var ring=rings[i];ring.enabled=sinceMark>=0&&vanish<1;
+                ring.transform.localScale=Vector3.one*guide.gap*(.52f+.12f*pulse+.32f*vanish);
+                ring.startColor=ring.endColor=new Color(1,.8f,.23f,1-vanish);
+            }
+            yield return null;
+        }
+        Destroy(root);
+    }
+    public static bool IsSorting(Transform parent)
+    {
+        if(parent==null)return false;
+        foreach(var effect in parent.GetComponentsInChildren<AugmentEffectView>())if(effect.IsSortMotion)return true;
+        return false;
+    }
+    public static void PlaySort(Transform parent,가이드_돌_코드 guide,AugmentBoard.SortMotion[] motions,GameObject[] stones)
+    {
+        if(guide==null||motions==null||motions.Length==0)return;
+        var root=new GameObject("SortNumberMotion");root.transform.SetParent(parent,false);
+        var view=root.AddComponent<AugmentEffectView>();view.IsAbilityMotion=true;view.IsSortMotion=true;
+        view.StartCoroutine(AnimateSort(root,guide,motions,(GameObject[])stones.Clone()));
+    }
+    private static IEnumerator AnimateSort(GameObject root,가이드_돌_코드 guide,AugmentBoard.SortMotion[] motions,GameObject[] stones)
+    {
+        var labels=new TextMeshPro[motions.Length];
+        var scales=new Vector3[motions.Length];
+        for(int i=0;i<motions.Length;i++)
+        {
+            var motion=motions[i];
+            if(motion.to<0||motion.to>=stones.Length||motion.from<0||motion.from>=361||stones[motion.to]==null)continue;
+            var stone=stones[motion.to];scales[i]=stone.transform.localScale;
+            stone.transform.position=Position(guide,motion.from%19,motion.from/19);
+            var number=new GameObject("SortNumber_"+motion.number);number.transform.SetParent(root.transform,false);
+            var label=number.AddComponent<TextMeshPro>();labels[i]=label;
+            label.text=motion.number.ToString();label.fontSize=5;label.fontStyle=FontStyles.Bold;
+            label.alignment=TextAlignmentOptions.Center;label.textWrappingMode=TextWrappingModes.NoWrap;
+            label.rectTransform.sizeDelta=new Vector2(guide.gap*.8f,guide.gap*.6f);
+            // Fixed world size keeps the number readable regardless of the stone prefab scale.
+            label.transform.localScale=Vector3.one*guide.gap;
+            label.color=motion.color==1?new Color(1,.9f,.45f):new Color(.18f,.12f,.04f);
+            label.renderer.sortingOrder=130;
+        }
+        const float reveal=.5f,travel=.55f,stagger=.065f,hold=.3f,fade=.22f;
+        int maxNumber=1;foreach(var motion in motions)maxNumber=Mathf.Max(maxNumber,motion.number);
+        float finish=reveal+travel+(maxNumber-1)*stagger;
+        for(float elapsed=0;elapsed<finish+hold+fade;elapsed+=Time.unscaledDeltaTime)
+        {
+            for(int i=0;i<motions.Length;i++)
+            {
+                if(labels[i]==null)continue;
+                var motion=motions[i];var stone=stones[motion.to];if(stone==null)continue;
+                float t=Mathf.Clamp01((elapsed-reveal-(motion.number-1)*stagger)/travel);
+                Vector3 from=Position(guide,motion.from%19,motion.from/19),to=Position(guide,motion.to%19,motion.to/19);
+                float lift=motion.from==motion.to?0:Mathf.Sin(t*Mathf.PI);
+                stone.transform.position=Vector3.Lerp(from,to,Mathf.SmoothStep(0,1,t))+Vector3.up*guide.gap*.32f*lift;
+                stone.transform.localScale=scales[i]*(1+.1f*lift);
+                labels[i].transform.position=stone.transform.position+Vector3.back*.15f;
+                float pop=Mathf.Clamp01(elapsed/.18f);
+                labels[i].transform.localScale=Vector3.one*guide.gap*Mathf.Lerp(.55f,1,Mathf.Sin(pop*Mathf.PI*.5f));
+                var color=labels[i].color;color.a=1-Mathf.Clamp01((elapsed-finish-hold)/fade);labels[i].color=color;
+            }
+            yield return null;
+        }
+        for(int i=0;i<motions.Length;i++)
+        {
+            if(labels[i]==null)continue;
+            var motion=motions[i];var stone=stones[motion.to];if(stone==null)continue;
+            stone.transform.position=Position(guide,motion.to%19,motion.to/19);stone.transform.localScale=scales[i];
+        }
+        Destroy(root);
+    }
     public static bool IsAbilityAnimating(Transform parent)
     {
         if(parent==null)return false;
         foreach(var effect in parent.GetComponentsInChildren<AugmentEffectView>())if(effect.IsAbilityMotion)return true;
+        foreach(var stack in parent.GetComponentsInChildren<StackStoneView>())if(stack.IsLanding)return true;
+        foreach(var box in parent.GetComponentsInChildren<MysteryBoxView>())if(box.IsPlaying)return true;
+        if(AbilityScreenView.IsAnimating(parent))return true;
         return false;
     }
     public static bool IsGolemSummoning(Transform parent)
@@ -49,6 +176,49 @@ public sealed class AugmentEffectView : MonoBehaviour
     {
         var root=new GameObject("StonePlacementPulse");root.transform.SetParent(parent,false);root.transform.position=position;
         root.AddComponent<AugmentEffectView>().StartCoroutine(AnimatePlacement(root,size,color));
+    }
+    public static void PlayTakeoverLanding(Transform parent,Vector3 position,float gap)
+    {
+        var root=new GameObject("TakeoverLandingPulse");root.transform.SetParent(parent,false);root.transform.position=position;
+        var view=root.AddComponent<AugmentEffectView>();view.IsAbilityMotion=true;
+        view.StartCoroutine(AnimateTakeoverLanding(root,gap));
+    }
+    private static IEnumerator AnimateTakeoverLanding(GameObject root,float gap)
+    {
+        var violet=new Color(.75f,.28f,1);var gold=new Color(1,.8f,.3f);
+        var first=PlacementRing(root.transform,violet);var second=PlacementRing(root.transform,gold);
+        var rays=new List<SpriteRenderer>();
+        for(int i=0;i<20;i++){var ray=Box(root.transform,i%2==0?violet:gold);ray.sortingOrder=120;rays.Add(ray);}
+        var corners=new List<SpriteRenderer>();
+        for(int i=0;i<4;i++){var corner=Box(root.transform,gold);corner.sortingOrder=121;corners.Add(corner);}
+        for(float elapsed=0;elapsed<.85f;elapsed+=Time.unscaledDeltaTime)
+        {
+            float t=Mathf.Clamp01(elapsed/.85f),ease=1-Mathf.Pow(1-t,3);
+            first.transform.localScale=Vector3.one*gap*Mathf.Lerp(.45f,1.8f,ease);
+            second.transform.localScale=Vector3.one*gap*Mathf.Lerp(.35f,1.25f,ease);
+            first.startWidth=first.endWidth=gap*.07f*(1-t);
+            second.startWidth=second.endWidth=gap*.04f*(1-t);
+            first.startColor=first.endColor=new Color(violet.r,violet.g,violet.b,1-t);
+            second.startColor=second.endColor=new Color(1,.8f,.3f,1-t);
+            for(int i=0;i<rays.Count;i++)
+            {
+                float angle=i*Mathf.PI*2/rays.Count;
+                rays[i].transform.localPosition=new Vector3(Mathf.Cos(angle),Mathf.Sin(angle),0)*gap*Mathf.Lerp(.4f,2.25f,ease);
+                rays[i].transform.localRotation=Quaternion.Euler(0,0,angle*Mathf.Rad2Deg);
+                rays[i].transform.localScale=new Vector3(gap*.55f*(1-t),gap*.055f*(1-t),1);
+                var color=i%2==0?violet:gold;color.a=1-t;rays[i].color=color;
+            }
+            for(int i=0;i<corners.Count;i++)
+            {
+                float angle=i*Mathf.PI*.5f+Mathf.PI*.25f;
+                corners[i].transform.localPosition=new Vector3(Mathf.Cos(angle),Mathf.Sin(angle),0)*gap*(.8f+.15f*Mathf.Sin(t*Mathf.PI));
+                corners[i].transform.localRotation=Quaternion.Euler(0,0,45+t*90);
+                corners[i].transform.localScale=Vector3.one*gap*.16f*(1-t);
+                corners[i].color=new Color(1,.8f,.3f,1-t);
+            }
+            yield return null;
+        }
+        Destroy(root);
     }
     private static IEnumerator AnimatePlacement(GameObject root,float size,int color)
     {
@@ -168,11 +338,31 @@ public sealed class AugmentEffectView : MonoBehaviour
     }
     public static GameObject CreateGolemIdle(Transform parent,Vector3 center,float gap)
     {
-        if(Artwork==null||Artwork.GolemBody==null)return BuildGolem(parent,center,gap,false);
+        if(Artwork==null||Artwork.GolemBody==null)
+        {
+            var fallback=BuildGolem(parent,center,gap,false);
+            if(fallback!=null)
+            {
+                var parts=fallback.GetComponentsInChildren<SpriteRenderer>();
+                if(parts.Length>0){var bounds=parts[0].bounds;foreach(var part in parts)bounds.Encapsulate(part.bounds);fallback.transform.localScale*=gap*2.85f/Mathf.Max(.01f,bounds.size.x,bounds.size.y);}
+                GolemFootprint(fallback.transform,gap);
+            }
+            return fallback;
+        }
         var root=new GameObject("GolemBodyOnBoard");root.transform.SetParent(parent,false);root.transform.position=center;
-        var body=Art(root.transform,Artwork.GolemBody,96);Fit(body,gap*.92f);
+        var body=Art(root.transform,Artwork.GolemBody,96);
+        body.transform.localScale=Vector3.one*(gap*2.85f/Mathf.Max(.01f,body.sprite.bounds.size.x,body.sprite.bounds.size.y));
+        GolemFootprint(root.transform,gap);
         root.AddComponent<GolemBoardVisual>().Configure(parent,body);
         return root;
+    }
+    private static void GolemFootprint(Transform parent,float gap)
+    {
+        var ring=PlacementRing(parent,new Color(1,.7f,.18f,.9f));ring.name="GolemFootprint3x3";
+        ring.positionCount=4;ring.sortingOrder=94;ring.startWidth=ring.endWidth=gap*.04f;
+        ring.SetPosition(0,new Vector3(-1.5f,-1.5f)*gap);ring.SetPosition(1,new Vector3(1.5f,-1.5f)*gap);
+        ring.SetPosition(2,new Vector3(1.5f,1.5f)*gap);ring.SetPosition(3,new Vector3(-1.5f,1.5f)*gap);
+        var floor=Box(parent,new Color(1,.65f,.1f,.08f));floor.sortingOrder=93;floor.transform.localScale=new Vector3(gap*3,gap*3,1);
     }
     private static IEnumerator Animate(GameObject root,가이드_돌_코드 guide,int id,int x,int y,int power,int[] before,int[] after,Vector2Int direction)
     {
@@ -411,7 +601,8 @@ public sealed class AugmentEffectView : MonoBehaviour
             }
             portrait.transform.position=Vector3.Lerp(stage,target,settle);
             float zoom=1f+Mathf.Sin(Mathf.Clamp01((elapsed-1.1f)/1.35f)*Mathf.PI)*.07f;
-            portrait.transform.localScale=Vector3.one*Mathf.Lerp(zoom,.92f/6.4f,settle);
+            float boardScale=2.85f*source.bounds.size.x/(6.4f*Mathf.Max(source.bounds.size.x,source.bounds.size.y));
+            portrait.transform.localScale=Vector3.one*Mathf.Lerp(zoom,boardScale,settle);
             for(int i=0;i<layers.Count;i++)
             {
                 float motion=Mathf.Sin(elapsed*3.5f+i*.65f)*(1-settle);

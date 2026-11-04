@@ -24,6 +24,7 @@ public sealed class AugmentMatch : MonoBehaviour
     private 가이드_돌_코드 guide;
     private Vector3 guidePreviewScale=Vector3.one;
     private readonly List<GameObject> visuals = new List<GameObject>();
+    private readonly GameObject[] stoneVisuals = new GameObject[361];
     private readonly List<string> history = new List<string>();
     private AugmentMultiplayer multiplayer;
     private int selected = -1, dx=1,dy, power=1;
@@ -36,11 +37,14 @@ public sealed class AugmentMatch : MonoBehaviour
     public IReadOnlyList<Command> CardOutcomes=>outcomes;
     private PlacementCue[] lastPlacements=Array.Empty<PlacementCue>();
     private int placementRevision;
-    [Serializable] public class PlacementCue { public int cell,color,stamp; public int size=1; }
+    [Serializable] public class PlacementCue { public int cell,color,stamp; public int size=1; public bool stolen; }
     private AugmentTargetView targetView;
     private bool dragging;
     private Vector2Int dragOrigin;
     private float catapultChargeStarted;
+    private float stackStarted;
+    private StackStoneView stackView;
+    private MysteryBoxView mysteryBoxView;
     private SpriteRenderer catapultPreview;
     public MeteorCharge Meteor { get; private set; } = new MeteorCharge();
     public ShotgunBurst Shotgun { get; private set; } = new ShotgunBurst();
@@ -52,8 +56,10 @@ public sealed class AugmentMatch : MonoBehaviour
     private static double Now => Time.realtimeSinceStartupAsDouble;
     public int LocalSide => multiplayer != null && multiplayer.Active ? (multiplayer.IsHost?1:2) : 0;
     public int ViewingSide=>LocalSide!=0?LocalSide:Board.takeover==Board.turn?3-Board.turn:Board.turn;
-    public bool CanControl(int side) => !IsReviewMode&&!Waiting&&!AugmentEffectView.IsGolemSummoning(transform) && (LocalSide==0||LocalSide==side);
-    [Serializable] public class Command { public string kind; public int side,id,x,y,dx,dy,power,revision,draftRound; public string result; public int[] removed,changedCells,beforeColors,afterColors; }
+    private bool IsBoxOpening=>mysteryBoxView!=null&&mysteryBoxView.IsPlaying;
+    private bool IsScreenEffectPlaying=>AbilityScreenView.IsAnimating(transform);
+    public bool CanControl(int side) => !IsReviewMode&&!Waiting&&!IsBoxOpening&&!IsScreenEffectPlaying&&!AugmentEffectView.IsGolemSummoning(transform)&&!AugmentEffectView.IsSorting(transform)&&!AugmentEffectView.IsCapturing(transform) && (LocalSide==0||LocalSide==side);
+    [Serializable] public class Command { public string kind; public int side,id,x,y,dx,dy,power,revision,draftRound,coinFace; public string result; public int[] removed,changedCells,beforeColors,afterColors; public AugmentBoard.SortMotion[] sortMotions; public AugmentBoard.CapturedStone[] captures; public AugmentBoard.StoneConversion[] conversions; public bool fromMysteryBox; }
     [Serializable] public class Snapshot { public AugmentBoard board; public CardManager.MatchCards cards; public int revision; public string status; public string[] history; public Command effect; public Command[] outcomes; public PlacementCue[] placements; public int placementRevision; public int effectRevision; public MeteorCharge meteor; public double meteorRemaining; public ShotgunBurst shotgun; public double shotgunRemaining; public MatchClock clock; public bool hiddenStoneRevealed; }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -115,6 +121,8 @@ public sealed class AugmentMatch : MonoBehaviour
     }
     public void ResetMatch(int seed)
     {
+        stackView?.Cancel();
+        mysteryBoxView?.Cancel();
         StopAllCoroutines();IsReviewMode=false;ReviewIndex=-1;MatchReviewSession.BeginMatch();
         resultQueued=false;
         lastCommandRevealedHiddenStone=false;
@@ -138,6 +146,7 @@ public sealed class AugmentMatch : MonoBehaviour
     {
         if(Board.premoveSetup!=0||Shotgun.active||Meteor.active||!CanControl(black?1:2)||Cards.IsChoosing||!Cards.CanUseCard(black)||!Cards.CheckCard(id,black)||Board.winner!=0)return;
         selected=id;pieceMove=false;power=1;dx=1;dy=0;dragging=false;
+        if(id==2)stackStarted=Time.unscaledTime;
         shotgunAim=Mouse.current!=null&&Camera.main!=null?MouseWorld():guide.centerPos;
         var initialAim=Cell(shotgunAim);if(!AugmentBoard.Inside(initialAim.x,initialAim.y))shotgunAim=guide.centerPos;
         Status=id==9?"투석: 판 아래 투석기를 누르고 조준한 뒤, 길게 눌러 힘을 모아 놓으세요":$"{Cards.CardList.Find(c=>c.Name==id).DisplayName}: 대상 교차점을 클릭하세요";
@@ -156,7 +165,7 @@ public sealed class AugmentMatch : MonoBehaviour
     {
         if(command==null||(command.side!=1&&command.side!=2))return false;
         bool draftSelection=command.kind=="select"&&Cards.IsChoosing&&(LocalSide==0||command.draftRound==Cards.RewardRoundCount);
-        if(AugmentEffectView.IsGolemSummoning(transform)&&command.kind!="surrender"&&command.kind!="timeout")return false;
+        if((IsBoxOpening||IsScreenEffectPlaying||AugmentEffectView.IsGolemSummoning(transform)||AugmentEffectView.IsSorting(transform)||AugmentEffectView.IsCapturing(transform))&&command.kind!="surrender"&&command.kind!="timeout")return false;
         if(IsReviewMode||Waiting||(command.revision!=Revision&&!draftSelection&&command.kind!="meteor-tap"&&command.kind!="shotgun-hit")||Board.winner!=0)return false;
         if(Meteor.active&&command.kind!="meteor-tap"&&command.kind!="meteor-impact"&&command.kind!="meteor-cancel"&&command.kind!="surrender"&&command.kind!="timeout")return false;
         if(Shotgun.active&&command.kind!="shotgun-hit"&&command.kind!="shotgun-end"&&command.kind!="surrender"&&command.kind!="timeout")return false;
@@ -164,7 +173,10 @@ public sealed class AugmentMatch : MonoBehaviour
         bool revealedHiddenStone=false;
         int[] before=(int[])Board.cells.Clone();
         int[] beforeHidden=(int[])Board.hidden.Clone();
+        Board.capturedStones.Clear();
+        Board.stoneConversions.Clear();
         int originalTurn=Board.turn,originalMoves=Board.moves;
+        bool stolenPlacement=command.kind=="place"&&Board.takeover==Board.turn&&command.side!=Board.turn;
         int usedAbility=-1,placedColor=0;
         double commandTime=Now;
         ApplyingCommand=true;
@@ -210,6 +222,7 @@ public sealed class AugmentMatch : MonoBehaviour
                         if(success)
                         {
                             Board=trial;usedAbility=Board.lastAbility;
+                            if(command.id==0)Cards.RevealMysteryBox(command.side==1,usedAbility);
                             if(usedAbility==1){Shotgun.Start(command.side,Now);Shotgun.Hit(command.side,Now);}
                         }
                     }
@@ -238,15 +251,16 @@ public sealed class AugmentMatch : MonoBehaviour
         }
         finally{ApplyingCommand=false;}
         if(!success){Status="사용할 수 없는 위치 또는 차례입니다. 다른 위치를 고르세요.";return false;}
+        if(usedAbility<0&&Board.capturedStones.Count>0)usedAbility=4;
         if(command.kind=="place"&&(!revealedHiddenStone||Board.automaticPlacements.Count>0))GameAudio.Instance.PlayStone();
         Revision++;lastCommandRevealedHiddenStone=revealedHiddenStone;selected=Shotgun.active&&CanControl(Shotgun.side)?1:Meteor.active&&CanControl(Meteor.side)?11:-1;pieceMove=false;dragging=false;targetView?.Hide();
         var placements=new List<PlacementCue>();
-        void Cue(int cell,int color,int size=1)
+        void Cue(int cell,int color,int size=1,bool stolen=false)
         {
             if(cell<0||cell>=361)return;
-            placements.Add(new PlacementCue{cell=cell,color=color,stamp=Board.order[cell],size=size});
+            placements.Add(new PlacementCue{cell=cell,color=color,stamp=Board.order[cell],size=size,stolen=stolen});
         }
-        if(command.kind=="place"&&!revealedHiddenStone)Cue(command.y*19+command.x,placedColor);
+        if(command.kind=="place"&&!revealedHiddenStone)Cue(command.y*19+command.x,placedColor,1,stolenPlacement);
         if(command.kind=="place"||command.kind=="piece")
             foreach(var placement in Board.automaticPlacements)Cue(placement.cell,placement.color);
         if(command.kind=="piece"&&Board.piece>=0)Cue(Board.piece,Board.pieceOwner);
@@ -254,7 +268,7 @@ public sealed class AugmentMatch : MonoBehaviour
         if(usedAbility==6)Cue(command.y*19+command.x,command.side,2);
         else if(usedAbility==9)
         {var landing=AugmentAim.CatapultLanding(new Vector2Int(command.x,command.y),new Vector2Int(command.dx,command.dy),command.power);Cue(landing.y*19+landing.x,command.side);}
-        else if(usedAbility==2||usedAbility==10||usedAbility==11||usedAbility==14||usedAbility==19)
+        else if(usedAbility==2||usedAbility==10||usedAbility==11||usedAbility==19)
             for(int p=0;p<361;p++)
                 if(Board.cells[p]!=0&&Board.cells[p]!=5&&Board.cells[p]!=before[p]&&Board.hidden[p]==0)Cue(p,Board.cells[p]);
         if(placements.Count>0){lastPlacements=placements.ToArray();placementRevision=Revision;}
@@ -276,7 +290,8 @@ public sealed class AugmentMatch : MonoBehaviour
         if(Board.winner!=0)Cards.EndMatch();
         Render();
         if(placements.Count>0)PlayPlacementCues();
-        if(usedAbility>=0&&!AugmentVisibility.IsSecret(usedAbility))
+        bool fromMysteryBox=command.kind=="ability"&&command.id==0;
+        if(usedAbility>=0&&(!AugmentVisibility.IsSecret(usedAbility)||fromMysteryBox))
         {
             var removed=new List<int>();var changedCells=new List<int>();var beforeColors=new List<int>();var afterColors=new List<int>();int changed=0;
             for(int p=0;p<361;p++)
@@ -301,17 +316,86 @@ public sealed class AugmentMatch : MonoBehaviour
             }
             lastEffect=new Command{kind="effect",side=command.side,id=usedAbility,x=command.x,y=command.y,dx=command.dx,dy=command.dy,power=command.power,revision=Revision,result=$"{(command.side==1?"흑":"백")} · {title}\n{detail}",removed=removed.ToArray(),changedCells=changedCells.ToArray(),beforeColors=beforeColors.ToArray(),afterColors=afterColors.ToArray()};effectRevision=Revision;
             outcomes.Add(lastEffect);if(outcomes.Count>128)outcomes.RemoveAt(0);
+            lastEffect.fromMysteryBox=fromMysteryBox;
+            if(usedAbility==20)lastEffect.coinFace=Board.lastFlipResult;
+            if(usedAbility==13)lastEffect.sortMotions=Board.sortMotions.FindAll(m=>beforeHidden[m.from]==0).ToArray();
+            if(usedAbility==4)lastEffect.captures=Board.capturedStones.ToArray();
+            PlayPublicEffect(lastEffect);
+        }
+        var conversions=Board.stoneConversions.FindAll(c=>Board.cells[c.cell]==c.to).ToArray();
+        if(conversions.Length>0)
+        {
+            lastEffect=new Command{kind="conversion",id=12,side=originalTurn,revision=Revision,conversions=conversions,result="착수한 돌의 색이 바뀌었습니다"};
+            effectRevision=Revision;outcomes.Add(lastEffect);if(outcomes.Count>128)outcomes.RemoveAt(0);
             PlayPublicEffect(lastEffect);
         }
         if(revealedHiddenStone)MatchReviewSession.Record("착수 실패 · 투명돌 발견",Capture());
         else if(command.kind=="place"&&history.Count>0)MatchReviewSession.Record(history[history.Count-1],Capture());
+        else if(fromMysteryBox)MatchReviewSession.Record("개꿀잼 상자",Capture());
         else if(usedAbility>=0&&!AugmentVisibility.IsSecret(usedAbility)||command.kind=="piece")MatchReviewSession.Record(command.kind=="piece"?"기물 이동":$"{(command.side==1?"흑":"백")} · {Cards.CardList.Find(c=>c.Name==usedAbility)?.DisplayName ?? "증강"}",Capture());
         if(Board.winner!=0)QueueResult();
         return true;
     }
+    private static bool IsReplayableEffect(Command effect)=>effect!=null&&(effect.kind=="conversion"||effect.kind=="effect"&&(!AugmentVisibility.IsSecret(effect.id)||effect.fromMysteryBox));
     private void PlayPublicEffect(Command effect)
     {
-        if(effect==null||effect.kind!="effect"||AugmentVisibility.IsSecret(effect.id))return;
+        if(effect!=null&&effect.kind=="conversion")
+        {
+            AbilityScreenView.PlayConversion(transform,guide,effect.conversions,stoneVisuals);
+            return;
+        }
+        if(effect==null||effect.kind!="effect")return;
+        if(effect.fromMysteryBox)
+        {
+            if(mysteryBoxView==null)
+            {
+                var root=new GameObject("MysteryBoxReveal");root.transform.SetParent(transform,false);
+                mysteryBoxView=root.AddComponent<MysteryBoxView>();
+            }
+            var card=Cards.CardList.Find(c=>c.Name==effect.id);
+            mysteryBoxView.Play(card?.DisplayName??"비공개 증강",card?.ItemImage,()=>PlayResolvedEffect(effect));
+            return;
+        }
+        PlayResolvedEffect(effect);
+    }
+    private void PlayResolvedEffect(Command effect)
+    {
+        if(effect.id<0||AugmentVisibility.IsSecret(effect.id))return;
+        if(effect.id==18)
+        {
+            AbilityScreenView.PlayTakeover(transform,guide,effect.side);
+            return;
+        }
+        if(effect.id==4&&effect.captures!=null)
+        {
+            AugmentEffectView.PlayCapture(transform,guide,effect.captures);
+            return;
+        }
+        if(effect.id==2)
+        {
+            EnsureStackView();
+            int baseColor=effect.side;
+            if(effect.changedCells!=null&&effect.beforeColors!=null)
+                for(int i=0;i<effect.changedCells.Length&&i<effect.beforeColors.Length;i++)
+                    if(effect.changedCells[i]==effect.y*19+effect.x)baseColor=effect.beforeColors[i];
+            stackView.PlayLanding(effect.side,baseColor,Mathf.Clamp(effect.dx/1000f,-2,2));
+            return;
+        }
+        if(effect.id==13&&effect.sortMotions!=null)
+        {
+            AugmentEffectView.PlaySort(transform,guide,effect.sortMotions,stoneVisuals);
+            return;
+        }
+        if(effect.id==20)
+        {
+            int face=effect.coinFace!=0?effect.coinFace:effect.result!=null&&effect.result.Contains("앞면")?1:2;
+            AbilityScreenView.PlayCoin(transform,face,effect.removed==null?0:effect.removed.Length,()=>PlayGenericEffect(effect));
+            return;
+        }
+        PlayGenericEffect(effect);
+    }
+    private void PlayGenericEffect(Command effect)
+    {
         // Use the host's public, per-activation changes instead of comparing unrelated snapshots.
         var before=new int[361];var after=new int[361];
         if(effect.changedCells!=null&&effect.beforeColors!=null&&effect.afterColors!=null)
@@ -341,6 +425,8 @@ public sealed class AugmentMatch : MonoBehaviour
     public string CaptureForSide(int side)
     {
         var state=JsonUtility.FromJson<Snapshot>(Capture());
+        HidePrivateBoxResult(state.effect,side);
+        if(state.outcomes!=null)foreach(var effect in state.outcomes)HidePrivateBoxResult(effect,side);
         // The charge is public; its aim and growing radius belong only to the caster.
         if(state.meteor!=null&&state.meteor.active&&state.meteor.side!=side)
         {state.meteor.x=state.meteor.y=-1;state.meteor.clicks=0;}
@@ -355,28 +441,34 @@ public sealed class AugmentMatch : MonoBehaviour
             {state.board.cells[p]=0;state.board.hidden[p]=0;state.board.order[p]=0;}
         int[] ids=side==1?state.cards.white:state.cards.black;
         bool[] used=side==1?state.cards.whiteUsed:state.cards.blackUsed;
-        for(int i=0;i<ids.Length;i++)if(AugmentVisibility.IsSecret(ids[i]))used[i]=false;
+        int[] resolved=side==1?state.cards.whiteResolved:state.cards.blackResolved;
+        // A used card becomes public; unrevealed inventory slots retain only their count.
+        for(int i=0;i<ids.Length;i++)if(!used[i]){ids[i]=-1;if(resolved!=null&&i<resolved.Length)resolved[i]=-1;}
         if(AugmentVisibility.IsSecret(state.board.lastAbility))
         {
             if(state.cards.turnBlack!=(side==1))state.cards.used=false;
             state.board.lastAbility=-1;
         }
-        if(state.effect!=null&&AugmentVisibility.IsSecret(state.effect.id))state.effect=null;
-        // Candidate IDs, inventory IDs and the draw seed never leave the host for the opponent.
+        if(state.effect!=null&&state.effect.kind=="effect"&&!state.effect.fromMysteryBox&&AugmentVisibility.IsSecret(state.effect.id))state.effect=null;
+        // Offers, unused inventory IDs and the draw seed remain private.
         state.cards.seed=0;
         if(side==1)
         {
             state.cards.whiteOffers=Array.Empty<int>();
-            state.cards.white=Array.ConvertAll(state.cards.white,_=>-1);
-            state.cards.whiteUsed=new bool[state.cards.white.Length];
         }
         else
         {
             state.cards.blackOffers=Array.Empty<int>();
-            state.cards.black=Array.ConvertAll(state.cards.black,_=>-1);
-            state.cards.blackUsed=new bool[state.cards.black.Length];
         }
         return JsonUtility.ToJson(state);
+    }
+    private static void HidePrivateBoxResult(Command effect,int viewer)
+    {
+        if(effect==null||!effect.fromMysteryBox||effect.side==viewer||!AugmentVisibility.IsSecret(effect.id))return;
+        effect.x=effect.y=effect.dx=effect.dy=effect.power=0;
+        if(effect.result!=null)effect.result=effect.result.Split('\n')[0];
+        effect.removed=effect.changedCells=effect.beforeColors=effect.afterColors=Array.Empty<int>();
+        effect.sortMotions=null;effect.captures=null;
     }
     public void Restore(string json)
     {
@@ -391,7 +483,7 @@ public sealed class AugmentMatch : MonoBehaviour
             UpdateClockUI();return;
         }
         int previousEffectRevision=effectRevision;
-        bool showEffect=state.effect!=null&&state.effect.kind=="effect"&&state.effectRevision>effectRevision;
+        bool showEffect=IsReplayableEffect(state.effect)&&state.effectRevision>effectRevision;
         bool showPlacement=state.placementRevision>placementRevision;
         lastPlacements=state.placements??Array.Empty<PlacementCue>();placementRevision=state.placementRevision;
         Board=state.board;Revision=state.revision;Status=state.status;lastEffect=state.effect;effectRevision=state.effectRevision;
@@ -408,7 +500,7 @@ public sealed class AugmentMatch : MonoBehaviour
         {
             bool played=false;
             foreach(var effect in outcomes)
-                if(effect!=null&&effect.kind=="effect"&&effect.revision>previousEffectRevision&&!AugmentVisibility.IsSecret(effect.id))
+                if(IsReplayableEffect(effect)&&effect.revision>previousEffectRevision)
                 {PlayPublicEffect(effect);played=true;}
             if(!played&&showEffect)PlayPublicEffect(lastEffect);
         }
@@ -441,6 +533,12 @@ public sealed class AugmentMatch : MonoBehaviour
     private void Update()
     {
         if(IsReviewMode){UpdateClockUI();return;}
+        if(IsBoxOpening||IsScreenEffectPlaying)
+        {
+            if(Shotgun.active)Shotgun.deadline=Now+ShotgunBurst.Duration;
+            targetView?.Hide();if(guide!=null)guide.GetComponent<SpriteRenderer>().enabled=false;
+            UpdateClockUI();return;
+        }
         UpdateClock();
         if(Shotgun.active&&Shotgun.Remaining(Now)<=0)
         {
@@ -464,7 +562,7 @@ public sealed class AugmentMatch : MonoBehaviour
     }
     private void UpdateClock()
     {
-        bool running=!IsReviewMode&&!Waiting&&Board.winner==0&&!Cards.IsChoosing&&!AugmentEffectView.IsGolemSummoning(transform);
+        bool running=!IsReviewMode&&!Waiting&&!IsBoxOpening&&!IsScreenEffectPlaying&&Board.winner==0&&!Cards.IsChoosing&&!AugmentEffectView.IsGolemSummoning(transform)&&!AugmentEffectView.IsCapturing(transform);
         if(running)
         {
             bool expired=Clock.Tick(Board.turn,Time.unscaledDeltaTime);
@@ -501,7 +599,7 @@ public sealed class AugmentMatch : MonoBehaviour
     private Vector2Int HoverCell(Vector3 world)
     {
         var cell=Cell(selected==1?shotgunAim:world);
-        if(selected==2)cell.x+=Mathf.RoundToInt(Mathf.Sin(Time.unscaledTime*4f)*2);
+        if(selected==2)cell.x+=Mathf.RoundToInt(AugmentAim.StackOffset(Time.unscaledTime-stackStarted));
         return cell;
     }
     private void HandlePointer(Vector3 world,bool pressed,bool released,bool overUI)
@@ -567,7 +665,7 @@ public sealed class AugmentMatch : MonoBehaviour
                 if(!AugmentBoard.Inside(origin.x,origin.y))return;
                 int stone=Board.At(origin.x,origin.y);
                 if(selected==3&&stone!=Board.turn){Status="내 돌을 누른 뒤 뒤로 당겨주세요.";return;}
-                if(selected==17&&(stone==0||stone==3||stone==5)){Status="이동할 수 있는 돌을 골라주세요.";return;}
+                if(selected==17&&(stone==0||stone==3||stone==5||stone==AugmentBoard.GolemCell)){Status="이동할 수 있는 돌을 골라주세요.";return;}
                 dragOrigin=origin;dragging=true;
             }
             if(!dragging)return;
@@ -580,6 +678,7 @@ public sealed class AugmentMatch : MonoBehaviour
         }
         if(!pressed||overUI)return;
         var target=HoverCell(world);if(!AugmentBoard.Inside(target.x,target.y))return;
+        if(selected==2)dx=Mathf.RoundToInt(AugmentAim.StackOffset(Time.unscaledTime-stackStarted)*1000f);
         if(selected<0&&!pieceMove&&Board.piece==target.y*19+target.x&&Board.pieceOwner==Board.turn)
         {pieceMove=true;Status="기물을 이동할 교차점을 클릭하세요.";return;}
         Submit(new Command{kind=selected==11?"meteor-start":selected>=0?"ability":pieceMove?"piece":"place",side=side,id=selected,x=target.x,y=target.y,dx=dx,dy=dy,power=power});
@@ -591,6 +690,7 @@ public sealed class AugmentMatch : MonoBehaviour
     }
     private void UpdatePreview()
     {
+        stackView?.HideAim();
         if(guide==null||Mouse.current==null||Camera.main==null)return;
         var sr=guide.GetComponent<SpriteRenderer>();
         sr.enabled=false;targetView?.Hide();if(catapultPreview!=null)catapultPreview.enabled=false;
@@ -600,6 +700,14 @@ public sealed class AugmentMatch : MonoBehaviour
         bool overUI=EventSystem.current!=null&&EventSystem.current.IsPointerOverGameObject();
         if(overUI&&!dragging&&!Meteor.active)return;
         Vector3 world=MouseWorld();var cell=Meteor.active?new Vector2Int(Meteor.x,Meteor.y):selected==9?new Vector2Int(9,18):dragging?dragOrigin:HoverCell(world);
+        if(selected==2)
+        {
+            EnsureStackView();
+            var origin=Cell(world);
+            float phase=Time.unscaledTime-stackStarted;
+            bool stackValid=AugmentBoard.Inside(cell.x,cell.y)&&ValidTarget(cell,Vector2Int.right)&&!Board.IsAnchored(cell.x,cell.y);
+            stackView.ShowAim(Board.turn,Board.VisibleAt(origin.x,origin.y,ViewingSide),AugmentAim.StackOffset(phase),AugmentAim.StackSpeed(phase),stackValid);
+        }
         if(!AugmentBoard.Inside(cell.x,cell.y))return;
         if(Board.premoveSetup!=0)
         {
@@ -661,11 +769,13 @@ public sealed class AugmentMatch : MonoBehaviour
         if(selected==6)
         {for(int y=0;y<2;y++)for(int x=0;x<2;x++)if(!AugmentBoard.Inside(cell.x+x,cell.y+y)||Board.VisibleAt(cell.x+x,cell.y+y,ViewingSide)!=0)return false;return true;}
         if(selected==10||selected==16)return value==0;
-        if(selected==2||selected==11||selected==14)return value!=3&&value!=5;
+        if(selected==14)return Board.CanSummonGolem(cell.x,cell.y,Board.turn);
+        if(selected==2)return value!=3&&value!=5&&value!=AugmentBoard.GolemCell;
+        if(selected==11)return value!=3&&value!=5;
         if(selected==3||selected==9||selected==17)
         {
             if(selected==3&&(value!=Board.turn||Board.IsAnchored(cell.x,cell.y)))return false;
-            if(selected==17&&(value==0||value==3||value==5))return false;
+            if(selected==17&&(value==0||value==3||value==5||value==AugmentBoard.GolemCell))return false;
             if(!dragging)return true;
             if(direction==Vector2Int.zero)return false;
             if(selected==3)return true;
@@ -676,10 +786,26 @@ public sealed class AugmentMatch : MonoBehaviour
         }
         return true;
     }
+    private void EnsureStackView()
+    {
+        if(stackView!=null)return;
+        var root=new GameObject("StackStoneSideView");root.transform.SetParent(transform,false);
+        stackView=root.AddComponent<StackStoneView>();
+    }
     private void Render()
     {
+        mysteryBoxView?.Cancel();
+        foreach(var screen in GetComponentsInChildren<AbilityScreenView>()){screen.Cancel();Destroy(screen.gameObject);}
+        foreach(var effect in GetComponentsInChildren<AugmentEffectView>())if(effect.IsSortMotion||effect.IsCaptureMotion){effect.gameObject.SetActive(false);Destroy(effect.gameObject);}
+        Array.Clear(stoneVisuals,0,stoneVisuals.Length);
         foreach(var visual in visuals)if(visual!=null)Destroy(visual);visuals.Clear();
         if(guide==null||guide.돌==null)return;
+        for(int owner=1;owner<=2;owner++)if(Board.giant[owner]>=0)
+        {
+            int p=Board.giant[owner];
+            var golem=AugmentEffectView.CreateGolemIdle(transform,new Vector3(guide.centerPos.x+(p%19-9)*guide.gap,guide.centerPos.y-(p/19-9)*guide.gap,-.08f),guide.gap);
+            if(golem!=null)visuals.Add(golem);
+        }
         var coveredByLargeStone=new bool[361];
         for(int anchor=0;anchor<361;anchor++)
         {
@@ -701,14 +827,7 @@ public sealed class AugmentMatch : MonoBehaviour
         {
             if(coveredByLargeStone[p])continue;
             int c=Board.cells[p];if(c==0||(Board.hidden[p]!=0&&Board.hidden[p]!=ViewingSide))continue;
-            if(c==5)continue;
-            bool giant=Board.giant[1]==p||Board.giant[2]==p;
-            if(giant)
-            {
-                var golem=AugmentEffectView.CreateGolemIdle(transform,new Vector3(guide.centerPos.x+(p%19-9)*guide.gap,guide.centerPos.y-(p/19-9)*guide.gap,-.08f),guide.gap);
-                if(golem!=null)visuals.Add(golem);
-                continue;
-            }
+            if(c==5||c==AugmentBoard.GolemCell)continue;
             var go=Instantiate(guide.돌,new Vector3(guide.centerPos.x+(p%19-9)*guide.gap,guide.centerPos.y-(p/19-9)*guide.gap,0),Quaternion.identity);
             var sr=go.GetComponent<SpriteRenderer>();sr.sprite=c==2||c==4?guide.흰돌이미지:guide.검은돌이미지;
             if(Board.IsAnchored(p%19,p/19))sr.sortingOrder=100;
@@ -721,14 +840,14 @@ public sealed class AugmentMatch : MonoBehaviour
                 sr.sprite=AugmentEffectView.Artwork.MeteorRock;sr.color=Color.white;
                 float rockScale=guide.gap*.9f/Mathf.Max(.01f,sr.sprite.bounds.size.x);go.transform.localScale=Vector3.one*rockScale;
             }
-            else if(c==3||c==5||Board.piece==p||giant)
+            else if(c==3||c==5||Board.piece==p)
             {
                 sr.sprite=AugmentEffectView.Square;
-                go.transform.localScale=Vector3.one*guide.gap*(giant?1.35f:.85f);
-                if(giant)sr.color=AugmentEffectView.Tint(14);
-                else if(Board.piece==p)sr.color=AugmentEffectView.Tint(7);
+                go.transform.localScale=Vector3.one*guide.gap*.85f;
+                if(Board.piece==p)sr.color=AugmentEffectView.Tint(7);
             }
             visuals.Add(go);
+            stoneVisuals[p]=go;
         }
         RenderBlackHoles();
         for(int p=0;p<361;p++)if(Board.IsAnchored(p%19,p/19))
@@ -750,7 +869,10 @@ public sealed class AugmentMatch : MonoBehaviour
         if(guide==null)return;
         foreach(var cue in lastPlacements)
             if(cue!=null&&cue.cell>=0&&cue.cell<361&&(Board.hidden[cue.cell]==0||Board.hidden[cue.cell]==ViewingSide))
+            {
                 AugmentEffectView.PlayPlacement(transform,PlacementPosition(cue),guide.gap*cue.size,cue.color);
+                if(cue.stolen)AugmentEffectView.PlayTakeoverLanding(transform,PlacementPosition(cue),guide.gap*cue.size);
+            }
     }
     private void RenderLastPlacements()
     {
@@ -835,17 +957,10 @@ public sealed class AugmentMatch : MonoBehaviour
     }
     private void OnGUI()
     {
-        if(outcomes.Count>0&&(!Waiting||IsReviewMode))
-        {
-            var resultStyle=new GUIStyle(GUI.skin.label){font=GuiFont,fontSize=Mathf.Clamp(Screen.height/48,14,22),alignment=TextAnchor.MiddleCenter,wordWrap=true};
-            bool instructions=IsReviewMode||selected>=0||pieceMove||Meteor.active||Board.premoveSetup==Board.turn||Board.Premoves(Board.turn).Length==6&&Board.premoveIndex[Board.turn]==0;
-            var resultBox=new Rect(Mathf.Max(8,(Screen.width-440)*.5f),Mathf.Max(8,Screen.height-(instructions?170:78)),Mathf.Min(440,Screen.width-16),70);
-            GUI.Box(resultBox,GUIContent.none);
-            GUI.Label(resultBox,outcomes[outcomes.Count-1].result,resultStyle);
-        }
         if(IsReviewMode)
         {
             if(guiStyle==null){guiStyle=new GUIStyle(GUI.skin.label){wordWrap=true};guiStyle.font=GuiFont;}
+            guiStyle.normal.textColor=Color.white;
             GUI.skin.label.font=GUI.skin.button.font=guiStyle.font;
             GUILayout.BeginArea(new Rect(Mathf.Max(8,(Screen.width-500)*.5f),Screen.height-92,500,84),GUI.skin.box);
             GUILayout.Label(Status,guiStyle);GUILayout.BeginHorizontal();
@@ -864,7 +979,8 @@ public sealed class AugmentMatch : MonoBehaviour
         GUI.skin.label.font=guiStyle.font;GUI.skin.button.font=guiStyle.font;GUI.skin.textField.font=guiStyle.font;
         float panelHeight=selected==9?170:80;
         float panelY=selected==9?150:Mathf.Max(8,Screen.height-panelHeight-8);
-        GUILayout.BeginArea(new Rect(Mathf.Max(8,(Screen.width-460)*.5f),panelY,460,panelHeight),GUI.skin.box);
+        guiStyle.normal.textColor=selected==9?Color.white:new Color(.16f,.12f,.07f);
+        GUILayout.BeginArea(new Rect(Mathf.Max(8,(Screen.width-460)*.5f),panelY,460,panelHeight),selected==9?GUI.skin.box:GUIStyle.none);
         if(planning||reservationsReady)
         {
             GUILayout.Label(planning?$"야리나오시다 · 예약 위치 {Board.Premoves(Board.turn).Length}/6": "예약 완료 · 이번 턴에 돌 1개를 직접 두세요",guiStyle);
