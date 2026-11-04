@@ -50,6 +50,7 @@ public static class GitHubPagesBuild
             if(summary.result!=BuildResult.Succeeded)throw new Exception("Web build failed: "+summary.result+" ("+summary.totalErrors+" errors)");
             File.WriteAllText("Builds/WebGL/.nojekyll","");
             File.Copy("Assets/Fonts/NanumGothic-OFL.txt","Builds/WebGL/NanumGothic-OFL.txt",true);
+            WebPlayerLayout.Apply("Builds/WebGL");
             Write(new Report{status="completed",bytes=(long)summary.totalSize,seconds=summary.totalTime.TotalSeconds});
         }
         catch(Exception e){Write(new Report{status="failed",error=e.ToString()});Debug.LogException(e);}

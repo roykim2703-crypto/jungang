@@ -40,6 +40,12 @@ public sealed class AugmentMatch : MonoBehaviour
     [Serializable] public class PlacementCue { public int cell,color,stamp; public int size=1; public bool stolen; }
     private AugmentTargetView targetView;
     private bool dragging;
+    private Vector2 pointerScreenPosition;
+    private bool pointerAvailable,pointerIsTouch,pointerHeld;
+    private float ignoreMouseUntil;
+    private readonly List<RaycastResult> pointerHits=new List<RaycastResult>();
+    private PointerEventData pointerEvent;
+    private EventSystem pointerEventSystem;
     private Vector2Int dragOrigin;
     private float catapultChargeStarted;
     private float stackStarted;
@@ -147,7 +153,7 @@ public sealed class AugmentMatch : MonoBehaviour
         if(Board.premoveSetup!=0||Shotgun.active||Meteor.active||!CanControl(black?1:2)||Cards.IsChoosing||!Cards.CanUseCard(black)||!Cards.CheckCard(id,black)||Board.winner!=0)return;
         selected=id;pieceMove=false;power=1;dx=1;dy=0;dragging=false;
         if(id==2)stackStarted=Time.unscaledTime;
-        shotgunAim=Mouse.current!=null&&Camera.main!=null?MouseWorld():guide.centerPos;
+        shotgunAim=pointerAvailable&&Camera.main!=null?PointerWorld():guide.centerPos;
         var initialAim=Cell(shotgunAim);if(!AugmentBoard.Inside(initialAim.x,initialAim.y))shotgunAim=guide.centerPos;
         Status=id==9?"투석: 판 아래 투석기를 누르고 조준한 뒤, 길게 눌러 힘을 모아 놓으세요":$"{Cards.CardList.Find(c=>c.Name==id).DisplayName}: 대상 교차점을 클릭하세요";
         if(id==4||id==5||id==8||id==12||id==18||id==20)
@@ -548,16 +554,17 @@ public sealed class AugmentMatch : MonoBehaviour
         if(Meteor.active&&!Waiting&&(!multiplayer.Active||multiplayer.IsHost)&&Meteor.Remaining(Now)<=0)
             Submit(new Command{kind="meteor-impact",side=Meteor.side});
         if(AudioSettings.IsOpen){dragging=false;targetView?.Hide();return;}
-        if(Mouse.current==null||Camera.main==null||guide==null)return;
-        if(!Shotgun.active&&(Mouse.current.rightButton.wasPressedThisFrame||(Keyboard.current!=null&&Keyboard.current.escapeKey.wasPressedThisFrame)))
+        if(Camera.main==null||guide==null)return;
+        if(!ReadPointer(out bool pressed,out bool released)){UpdatePreview();return;}
+        if(!Shotgun.active&&((Mouse.current!=null&&Mouse.current.rightButton.wasPressedThisFrame)||(Keyboard.current!=null&&Keyboard.current.escapeKey.wasPressedThisFrame)))
         {
             if(Meteor.active&&CanControl(Meteor.side))Submit(new Command{kind="meteor-cancel",side=Meteor.side});
             selected=-1;pieceMove=false;dragging=false;targetView?.Hide();if(catapultPreview!=null)catapultPreview.enabled=false;
         }
-        Vector3 world=MouseWorld();
+        Vector3 world=PointerWorld();
         shotgunAim=Vector3.MoveTowards(shotgunAim,world,Time.unscaledDeltaTime*guide.gap*2);
-        bool overUI=EventSystem.current!=null&&EventSystem.current.IsPointerOverGameObject();
-        HandlePointer(world,Mouse.current.leftButton.wasPressedThisFrame,Mouse.current.leftButton.wasReleasedThisFrame,overUI);
+        bool overUI=PointerOverUI();
+        HandlePointer(world,pressed,released,overUI);
         UpdatePreview();
     }
     private void UpdateClock()
@@ -593,7 +600,47 @@ public sealed class AugmentMatch : MonoBehaviour
     {
         int total=Mathf.Max(0,Mathf.CeilToInt(seconds));return $"{total/60:00}:{total%60:00}";
     }
-    private Vector3 MouseWorld(){Vector3 p=Camera.main.ScreenToWorldPoint(Mouse.current.position.ReadValue());p.z=0;return p;}
+    private bool ReadPointer(out bool pressed,out bool released)
+    {
+        pressed=released=false;
+        var touch=Touchscreen.current?.primaryTouch;
+        if(touch!=null&&(touch.press.isPressed||touch.press.wasPressedThisFrame||touch.press.wasReleasedThisFrame))
+        {
+            pointerIsTouch=true;pointerAvailable=true;pointerHeld=touch.press.isPressed;
+            pointerScreenPosition=touch.position.ReadValue();
+            // Some browsers also emit compatibility mouse events for a tap.
+            ignoreMouseUntil=Time.unscaledTime+.2f;
+            if(touch.phase.ReadValue()==UnityEngine.InputSystem.TouchPhase.Canceled)
+            {dragging=false;pointerAvailable=false;return false;}
+            pressed=touch.press.wasPressedThisFrame;released=touch.press.wasReleasedThisFrame;
+            return true;
+        }
+        pointerAvailable=false;pointerHeld=false;
+        if(Mouse.current==null||Time.unscaledTime<ignoreMouseUntil)return false;
+        pointerIsTouch=false;pointerAvailable=true;
+        pointerScreenPosition=Mouse.current.position.ReadValue();
+        pointerHeld=Mouse.current.leftButton.isPressed;
+        pressed=Mouse.current.leftButton.wasPressedThisFrame;released=Mouse.current.leftButton.wasReleasedThisFrame;
+        return true;
+    }
+    private bool PointerOverUI()
+    {
+        var events=EventSystem.current;if(events==null)return false;
+        // A mouse click can close a UI panel earlier in this frame. Keep the UI
+        // module's hit too, so that same click cannot fall through onto the board.
+        if(!pointerIsTouch&&events.IsPointerOverGameObject())return true;
+        if(pointerEvent==null||pointerEventSystem!=events){pointerEventSystem=events;pointerEvent=new PointerEventData(events);}
+        pointerEvent.Reset();pointerEvent.position=pointerScreenPosition;
+        pointerHits.Clear();events.RaycastAll(pointerEvent,pointerHits);
+        foreach(var hit in pointerHits)if(hit.module is GraphicRaycaster)return true;
+        return false;
+    }
+    private Vector3 PointerWorld(){Vector3 p=Camera.main.ScreenToWorldPoint(pointerScreenPosition);p.z=0;return p;}
+    private void OnApplicationFocus(bool focused)
+    {
+        if(focused)return;
+        dragging=false;pointerAvailable=false;pointerHeld=false;
+    }
     private Vector2 Grid(Vector3 world)=>new Vector2((world.x-guide.centerPos.x)/guide.gap+9,9-(world.y-guide.centerPos.y)/guide.gap);
     private Vector2Int Cell(Vector3 world){Vector2 p=Grid(world);return new Vector2Int(Mathf.RoundToInt(p.x),Mathf.RoundToInt(p.y));}
     private Vector2Int HoverCell(Vector3 world)
@@ -691,15 +738,16 @@ public sealed class AugmentMatch : MonoBehaviour
     private void UpdatePreview()
     {
         stackView?.HideAim();
-        if(guide==null||Mouse.current==null||Camera.main==null)return;
+        if(guide==null||Camera.main==null)return;
         var sr=guide.GetComponent<SpriteRenderer>();
         sr.enabled=false;targetView?.Hide();if(catapultPreview!=null)catapultPreview.enabled=false;
+        if(!pointerAvailable||(pointerIsTouch&&!pointerHeld))return;
         if(IsReviewMode||Waiting||Cards.IsChoosing||Board.winner!=0||AugmentEffectView.IsGolemSummoning(transform))return;
         int controllingSide=selected>=0||pieceMove?Board.turn:Board.takeover==Board.turn?3-Board.turn:Board.turn;
         if(!CanControl(controllingSide))return;
-        bool overUI=EventSystem.current!=null&&EventSystem.current.IsPointerOverGameObject();
+        bool overUI=PointerOverUI();
         if(overUI&&!dragging&&!Meteor.active)return;
-        Vector3 world=MouseWorld();var cell=Meteor.active?new Vector2Int(Meteor.x,Meteor.y):selected==9?new Vector2Int(9,18):dragging?dragOrigin:HoverCell(world);
+        Vector3 world=PointerWorld();var cell=Meteor.active?new Vector2Int(Meteor.x,Meteor.y):selected==9?new Vector2Int(9,18):dragging?dragOrigin:HoverCell(world);
         if(selected==2)
         {
             EnsureStackView();
