@@ -6,7 +6,9 @@
     <title>Unity Web Player | jeunggang</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
-  </head>
+  <link rel="stylesheet" href="TemplateData/mobile-layout.css">
+<script src="TemplateData/mobile-layout.js"></script>
+</head>
   <body>
     <div id="unity-container" class="unity-desktop">
       <div id="unity-fullscreen-container">
@@ -120,6 +122,7 @@
       }
 
 
+      window.JungangMobileLayout(config);
       var script = document.createElement("script");
       script.src = loaderUrl;
       script.onload = () => {
