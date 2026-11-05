@@ -1289,7 +1289,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9602db1598c9ec7408c1635a6572f7d2, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameAudio
   musicClip: {fileID: 8300000, guid: b62f6cbdb1d497e4fb73ce908bab815c, type: 3}
   stoneClip: {fileID: 8300000, guid: f5c3bd4ed334bf74b89e97c830591c54, type: 3}
@@ -1602,15 +1602,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1660057539 &9223372036854775807
-SceneRoots:
-  m_ObjectHideFlags: 0
-  m_Roots:
-  - {fileID: 519420032}
-  - {fileID: 619394802}
-  - {fileID: 1319068150}
-  - {fileID: 1967429015}
-  - {fileID: 1377389455}
 --- !u!114 &7900000000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1621,7 +1612,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f5840c9eefeeec4399ac39ab898fe3e, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RoundedUI
   radius: 18
 --- !u!114 &7900000001
@@ -1634,7 +1625,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f5840c9eefeeec4399ac39ab898fe3e, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RoundedUI
   radius: 18
 --- !u!114 &7900000002
@@ -1647,6 +1638,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f5840c9eefeeec4399ac39ab898fe3e, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RoundedUI
   radius: 18
+--- !u!1660057539 &9223372036854775807
+SceneRoots:
+  m_ObjectHideFlags: 0
+  m_Roots:
+  - {fileID: 519420032}
+  - {fileID: 619394802}
+  - {fileID: 1319068150}
+  - {fileID: 1967429015}
+  - {fileID: 1377389455}

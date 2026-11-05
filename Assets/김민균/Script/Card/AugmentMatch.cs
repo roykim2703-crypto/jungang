@@ -1057,7 +1057,7 @@ public sealed class AugmentMatch : MonoBehaviour
         GUILayout.EndArea();
     }
     private static Font GuiFont=>Resources.Load<MultiplayerMenuAssets>("MultiplayerMenuAssets")?.Font?.sourceFontFile??Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-    private async void ReturnFromReview()
+    public async void ReturnFromReview()
     {
         MatchReviewSession.Clear();if(multiplayer.Active||multiplayer.IsConnecting)await multiplayer.Leave();else SceneManager.LoadSceneAsync(AugmentMultiplayer.HomeScene);
     }
