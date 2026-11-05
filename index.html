@@ -6,8 +6,8 @@
     <title>Unity Web Player | jeunggang</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
-  <link rel="stylesheet" href="TemplateData/mobile-layout.css?v=board169-v2">
-<script src="TemplateData/mobile-layout.js?v=board169-v2"></script>
+  <link rel="stylesheet" href="TemplateData/mobile-layout.css?v=sharp169-v3">
+<script src="TemplateData/mobile-layout.js?v=sharp169-v3"></script>
 </head>
   <body>
     <div id="unity-container" class="unity-desktop">
@@ -138,7 +138,7 @@
           }
         }).then((unityInstance) => {
                 document.querySelector("#unity-fullscreen-button").onclick = () => {
-                  unityInstance.SetFullscreen(1);
+                  window.JungangToggleFullscreen();
                 };
 
               }).catch((message) => {

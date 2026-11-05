@@ -1,6 +1,6 @@
 ﻿{
     "sourceCommit":  "ea0bb2d97c3b2411f0bf142aee923c201ccb5a43",
-    "layoutRevision":  "board169-v2",
     "inputRevision":  "touch-v1",
-    "builtAtUtc":  "2026-11-04T13:56:08.5219004Z"
+    "builtAtUtc":  "2026-11-04T13:56:08.5219004Z",
+    "layoutRevision":  "sharp169-v3"
 }

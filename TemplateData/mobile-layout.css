@@ -9,12 +9,14 @@ html.jungang-mobile, .jungang-mobile body {
 }
 .jungang-mobile #unity-fullscreen-container { flex: none; }
 .jungang-mobile #unity-canvas { touch-action: none; }
-#unity-container:fullscreen {
+.jungang-fullscreen #unity-container {
+  position: fixed; left: 0; top: 0;
   display: flex; align-items: center; justify-content: center;
   box-sizing: border-box; background: #171717; transform: none;
 }
-#unity-container:fullscreen #unity-fullscreen-container { flex: none; }
-#unity-container:fullscreen #unity-footer { display: none; }
+.jungang-fullscreen #unity-fullscreen-container { flex: none; }
+.jungang-fullscreen #unity-footer { display: none; }
+#unity-canvas { image-rendering: auto; }
 #mobile-rotate-guide { display: none; }
 @media (orientation: portrait) {
   .jungang-mobile #mobile-rotate-guide {
