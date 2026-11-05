@@ -18,6 +18,7 @@ public class 수_놓기 : MonoBehaviour
 
     private readonly 육목_규칙 규칙 = new 육목_규칙();
     private bool 증강사용중;
+    private Transform starPoints;
 
     public int 획득한증강수 => 규칙.획득한_증강_수;
     public 돌_색 승자 => 규칙.승자;
@@ -44,6 +45,7 @@ public class 수_놓기 : MonoBehaviour
         //동기화
         guideStoneScript.centerPos = centerPos;
         guideStoneScript.gap = gap;
+        EnsureStarPoints();
         guideStoneScript.isBlack = isBlack;
         guideStoneScript.증강사용중 = 증강사용중;
         guideStoneScript.규칙 = 규칙;
@@ -51,6 +53,34 @@ public class 수_놓기 : MonoBehaviour
         
         guideStoneScript.격자로놓기시작();
         
+    }
+
+    private void EnsureStarPoints()
+    {
+        if (starPoints != null) return;
+        var sprite = guideStoneScript.검은돌이미지;
+        if (sprite == null) return;
+
+        starPoints = new GameObject("BoardStarPoints").transform;
+        starPoints.position = centerPos;
+        starPoints.SetParent(transform, true);
+        var stoneRenderer = guideStoneScript.GetComponent<SpriteRenderer>();
+        // Standard 19x19 hoshi: fourth, tenth and sixteenth intersections.
+        for (int y = -6; y <= 6; y += 6)
+        for (int x = -6; x <= 6; x += 6)
+        {
+            var point = new GameObject($"StarPoint_{x + 10}_{10 - y}");
+            point.transform.SetParent(starPoints, false);
+            point.transform.localPosition = new Vector3(x * gap, y * gap, 0f);
+            point.transform.localScale = new Vector3(
+                gap * .30f / sprite.bounds.size.x,
+                gap * .30f / sprite.bounds.size.y, 1f);
+            var renderer = point.AddComponent<SpriteRenderer>();
+            renderer.sprite = sprite;
+            renderer.color = new Color(.12f, .09f, .06f, 1f);
+            renderer.sortingLayerID = stoneRenderer.sortingLayerID;
+            renderer.sortingOrder = stoneRenderer.sortingOrder - 1;
+        }
     }
 
     /// <summary>돌을 두기 전, 현재 턴에 증강을 쓸지 지정한다.</summary>
