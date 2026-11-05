@@ -46,6 +46,16 @@ public sealed class AugmentMatch : MonoBehaviour
     private readonly List<RaycastResult> pointerHits=new List<RaycastResult>();
     private PointerEventData pointerEvent;
     private EventSystem pointerEventSystem;
+    private Command pendingPlacement;
+    public bool UsesPlacementConfirmation { get; private set; }
+    public bool HasPendingPlacement => pendingPlacement!=null&&PendingPlacementContextValid;
+    public Vector2Int PendingPlacementCell => pendingPlacement==null?new Vector2Int(-1,-1):new Vector2Int(pendingPlacement.x,pendingPlacement.y);
+    private bool PendingPlacementContextValid => pendingPlacement!=null&&pendingPlacement.revision==Revision
+        &&pendingPlacement.side==(Board.takeover==Board.turn?3-Board.turn:Board.turn)
+        &&CanControl(pendingPlacement.side)&&!Cards.IsChoosing&&selected<0&&!pieceMove
+        &&!Meteor.active&&!Shotgun.active&&Board.premoveSetup==0&&Board.winner==0;
+    public bool CanConfirmPlacement => HasPendingPlacement
+        &&Board.PreviewLegal(pendingPlacement.x,pendingPlacement.y,Board.turn,Cards.CardUsedThisTurn,ViewingSide);
     private Vector2Int dragOrigin;
     private float catapultChargeStarted;
     private float stackStarted;
@@ -82,13 +92,14 @@ public sealed class AugmentMatch : MonoBehaviour
     }
     private void Awake()
     {
-        Instance=this; Cards=GetComponent<CardManager>();
+        Instance=this; Cards=GetComponent<CardManager>();UsesPlacementConfirmation=MobileGameInput.RequiresPlacementConfirmation;
         guide=FindAnyObjectByType<가이드_돌_코드>();
         if(guide!=null)guidePreviewScale=guide.transform.localScale;
         var turns=FindAnyObjectByType<수_놓기>();
         // Copy board geometry before stopping the former placement loop.
         if(turns!=null){turns.이제너의턴();turns.StopAllCoroutines();turns.enabled=false;}
         if(guide!=null){guide.StopAllCoroutines();guide.enabled=false;guide.GetComponent<SpriteRenderer>().enabled=false;}
+        if(guide!=null)BoardStarPoints.Create(transform,guide.centerPos,guide.gap);
         var debugInput=FindAnyObjectByType<테스트용>();if(debugInput!=null)debugInput.enabled=false;
         var bridge=GetComponent<CardMatchBridge>();if(bridge!=null){bridge.StopAllCoroutines();bridge.enabled=false;}
         multiplayer=AugmentMultiplayer.Instance;multiplayer.Attach(this);
@@ -122,11 +133,13 @@ public sealed class AugmentMatch : MonoBehaviour
     }
     public void WaitForNetwork()
     {
+        pendingPlacement=null;
         Waiting=true;dragging=false;selected=-1;targetView?.Hide();Cards.EndMatch();
         if(guide!=null)guide.GetComponent<SpriteRenderer>().enabled=false;
     }
     public void ResetMatch(int seed)
     {
+        pendingPlacement=null;
         stackView?.Cancel();
         mysteryBoxView?.Cancel();
         StopAllCoroutines();IsReviewMode=false;ReviewIndex=-1;MatchReviewSession.BeginMatch();
@@ -151,7 +164,7 @@ public sealed class AugmentMatch : MonoBehaviour
     public void ChooseAbility(bool black,int id)
     {
         if(Board.premoveSetup!=0||Shotgun.active||Meteor.active||!CanControl(black?1:2)||Cards.IsChoosing||!Cards.CanUseCard(black)||!Cards.CheckCard(id,black)||Board.winner!=0)return;
-        selected=id;pieceMove=false;power=1;dx=1;dy=0;dragging=false;
+        pendingPlacement=null;selected=id;pieceMove=false;power=1;dx=1;dy=0;dragging=false;
         if(id==2)stackStarted=Time.unscaledTime;
         shotgunAim=pointerAvailable&&Camera.main!=null?PointerWorld():guide.centerPos;
         var initialAim=Cell(shotgunAim);if(!AugmentBoard.Inside(initialAim.x,initialAim.y))shotgunAim=guide.centerPos;
@@ -166,6 +179,12 @@ public sealed class AugmentMatch : MonoBehaviour
         bool accepted=Apply(command);
         if(accepted&&multiplayer.Active)multiplayer.Broadcast();
         return accepted;
+    }
+    public bool ConfirmPlacement()
+    {
+        if(!UsesPlacementConfirmation||!CanConfirmPlacement)return false;
+        var command=pendingPlacement;pendingPlacement=null;
+        return Submit(command);
     }
     public bool Apply(Command command)
     {
@@ -259,6 +278,7 @@ public sealed class AugmentMatch : MonoBehaviour
         if(!success){Status="사용할 수 없는 위치 또는 차례입니다. 다른 위치를 고르세요.";return false;}
         if(usedAbility<0&&Board.capturedStones.Count>0)usedAbility=4;
         if(command.kind=="place"&&(!revealedHiddenStone||Board.automaticPlacements.Count>0))GameAudio.Instance.PlayStone();
+        pendingPlacement=null;
         Revision++;lastCommandRevealedHiddenStone=revealedHiddenStone;selected=Shotgun.active&&CanControl(Shotgun.side)?1:Meteor.active&&CanControl(Meteor.side)?11:-1;pieceMove=false;dragging=false;targetView?.Hide();
         var placements=new List<PlacementCue>();
         void Cue(int cell,int color,int size=1,bool stolen=false)
@@ -538,6 +558,7 @@ public sealed class AugmentMatch : MonoBehaviour
     }
     private void Update()
     {
+        if(pendingPlacement!=null&&!PendingPlacementContextValid)pendingPlacement=null;
         if(IsReviewMode){UpdateClockUI();return;}
         if(IsBoxOpening||IsScreenEffectPlaying)
         {
@@ -728,7 +749,10 @@ public sealed class AugmentMatch : MonoBehaviour
         if(selected==2)dx=Mathf.RoundToInt(AugmentAim.StackOffset(Time.unscaledTime-stackStarted)*1000f);
         if(selected<0&&!pieceMove&&Board.piece==target.y*19+target.x&&Board.pieceOwner==Board.turn)
         {pieceMove=true;Status="기물을 이동할 교차점을 클릭하세요.";return;}
-        Submit(new Command{kind=selected==11?"meteor-start":selected>=0?"ability":pieceMove?"piece":"place",side=side,id=selected,x=target.x,y=target.y,dx=dx,dy=dy,power=power});
+        var command=new Command{kind=selected==11?"meteor-start":selected>=0?"ability":pieceMove?"piece":"place",side=side,id=selected,x=target.x,y=target.y,dx=dx,dy=dy,power=power};
+        if(UsesPlacementConfirmation&&command.kind=="place")
+        {command.revision=Revision;pendingPlacement=command;return;}
+        Submit(command);
     }
     public void Surrender()
     {
@@ -741,8 +765,9 @@ public sealed class AugmentMatch : MonoBehaviour
         if(guide==null||Camera.main==null)return;
         var sr=guide.GetComponent<SpriteRenderer>();
         sr.enabled=false;targetView?.Hide();if(catapultPreview!=null)catapultPreview.enabled=false;
-        if(!pointerAvailable||(pointerIsTouch&&!pointerHeld))return;
         if(IsReviewMode||Waiting||Cards.IsChoosing||Board.winner!=0||AugmentEffectView.IsGolemSummoning(transform))return;
+        if(HasPendingPlacement){ShowPlacementMarker(PendingPlacementCell,CanConfirmPlacement);return;}
+        if(!pointerAvailable||(pointerIsTouch&&!pointerHeld))return;
         int controllingSide=selected>=0||pieceMove?Board.turn:Board.takeover==Board.turn?3-Board.turn:Board.turn;
         if(!CanControl(controllingSide))return;
         bool overUI=PointerOverUI();

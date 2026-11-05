@@ -16,6 +16,8 @@ public sealed class MultiplayerMenu : MonoBehaviour
     private Button host,join,local,start,leave,copy,close,timeDown,timeUp;
     private TMP_FontAsset font;
     private bool visible;
+    private bool mobileConfirmation;
+    private Button confirmPlacement;
     private string error="";
     private TMP_Text copyLabel;
     private string copyMessage="",copyCode="";
@@ -38,7 +40,7 @@ public sealed class MultiplayerMenu : MonoBehaviour
     }
     private void Awake()
     {
-        room=GetComponent<AugmentMultiplayer>();
+        room=GetComponent<AugmentMultiplayer>();mobileConfirmation=MobileGameInput.RequiresPlacementConfirmation;
         var assets=Resources.Load<MultiplayerMenuAssets>("MultiplayerMenuAssets");font=assets!=null?assets.Font:TMP_Settings.defaultFontAsset;
         Build();
     }
@@ -66,6 +68,17 @@ public sealed class MultiplayerMenu : MonoBehaviour
         code.text=string.IsNullOrEmpty(room.InvitationCode)?"초대코드 · 방을 만들면 표시됩니다":"초대코드  "+room.InvitationCode;
         string side=room.Active?(room.IsHost?"흑":"백"):"로컬";
         hudStatus.text=side+" · "+(room.Stage==AugmentMultiplayer.RoomStage.Playing&&AugmentMatch.Instance!=null?AugmentMatch.Instance.Status:room.Active?room.ConnectionStatus:"대국 진행 중");
+        if(mobileConfirmation)
+        {
+            var match=AugmentMatch.Instance;
+            confirmPlacement.interactable=match!=null&&match.CanConfirmPlacement&&!AudioSettings.IsOpen;
+            if(match!=null&&match.HasPendingPlacement)
+            {
+                var cell=match.PendingPlacementCell;
+                hudStatus.text=match.CanConfirmPlacement?$"({cell.x+1}, {cell.y+1}) 선택":"다른 위치 선택";
+            }
+            else hudStatus.text=match!=null&&match.Cards.IsChoosing?"증강 선택 중":"위치 선택";
+        }
     }
     private void Build()
     {
@@ -107,8 +120,27 @@ public sealed class MultiplayerMenu : MonoBehaviour
         var hudRect=(RectTransform)hud.transform;hudRect.anchorMin=hudRect.anchorMax=new Vector2(.5f,0);hudRect.pivot=new Vector2(.5f,0);hudRect.anchoredPosition=new Vector2(0,8);
         hud.AddComponent<Image>().color=new Color(.98f,.94f,.84f,.94f); RoundedUI.Apply(hud.GetComponent<Image>(),18f);
         hudStatus=Label("Status",hud.transform,new Vector2(-50,0),new Vector2(310,45),"",15);
-        Button("ReturnHome",hud.transform,new Vector2(163,0),new Vector2(90,38),"나가기",async()=>await room.Leave());
-        Button("AudioSettings",hud.transform,new Vector2(0,-52),new Vector2(110,38),"소리 설정",AudioSettings.Open);
+        var returnHome=Button("ReturnHome",hud.transform,new Vector2(163,0),new Vector2(90,38),"나가기",async()=>await room.Leave());
+        var audio=Button("AudioSettings",hud.transform,new Vector2(0,-52),new Vector2(110,38),"소리 설정",AudioSettings.Open);
+        if(mobileConfirmation)
+        {
+            // Reuse the room HUD and its existing buttons in the side panel's header.
+            hudRect.anchorMin=hudRect.anchorMax=new Vector2(.8f,.75f);hudRect.pivot=Vector2.one*.5f;
+            hudRect.anchoredPosition=Vector2.zero;hudRect.sizeDelta=new Vector2(430,76);
+            hudStatus.rectTransform.anchoredPosition=new Vector2(-135,0);
+            hudStatus.rectTransform.sizeDelta=new Vector2(135,60);hudStatus.fontSize=20;
+            confirmPlacement=returnHome;confirmPlacement.name="ConfirmPlacement";
+            var confirmRect=(RectTransform)confirmPlacement.transform;
+            confirmRect.anchoredPosition=new Vector2(30,0);confirmRect.sizeDelta=new Vector2(180,60);
+            confirmPlacement.onClick.RemoveAllListeners();
+            confirmPlacement.onClick.AddListener(()=>{var match=AugmentMatch.Instance;if(match!=null)match.ConfirmPlacement();});
+            var confirmText=confirmPlacement.GetComponentInChildren<TMP_Text>();
+            confirmText.text="착수 확인";confirmText.font=font;confirmText.fontSize=24;
+            confirmText.rectTransform.sizeDelta=new Vector2(168,56);
+            var leaveRect=(RectTransform)audio.transform;leaveRect.anchoredPosition=new Vector2(170,0);leaveRect.sizeDelta=new Vector2(72,60);
+            audio.name="ReturnHome";audio.onClick.RemoveAllListeners();audio.onClick.AddListener(async()=>await room.Leave());
+            var leaveText=audio.GetComponentInChildren<TMP_Text>();leaveText.text="나가기";leaveText.fontSize=18;leaveText.rectTransform.sizeDelta=new Vector2(66,56);
+        }
         TitleFadeIn.ConfigurePopup(modal, panel);
         modal.SetActive(false);hud.SetActive(false);
     }
