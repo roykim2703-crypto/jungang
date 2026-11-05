@@ -18,7 +18,8 @@ public static class WebPlayerLayout
             html = html.Replace("</head>", "<link rel=\"stylesheet\" href=\"TemplateData/mobile-layout.css\">\n<script src=\"TemplateData/mobile-layout.js\"></script>\n</head>");
         if (!html.Contains("JungangMobileLayout(config)"))
             html = html.Replace("var script = document.createElement(\"script\");", "window.JungangMobileLayout(config);\n      var script = document.createElement(\"script\");");
-        html = Regex.Replace(html, @"TemplateData/mobile-layout\.(css|js)(\?[^""\s<>]*)?", "TemplateData/mobile-layout.$1?v=board169-v2");
+        html = Regex.Replace(html, @"TemplateData/mobile-layout\.(css|js)(\?[^""\s<>]*)?", "TemplateData/mobile-layout.$1?v=auto169-v4");
+        html = html.Replace("unityInstance.SetFullscreen(1);", "window.JungangToggleFullscreen();");
         // New game code must not reuse a browser's cached copy of the previous player.
         html = Regex.Replace(html, @"(buildUrl\s*\+\s*""/)([^""?]+)(?:\?[^""]*)?("")", match =>
         {
